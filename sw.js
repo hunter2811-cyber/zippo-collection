@@ -17,7 +17,7 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET' || url.origin !== location.origin) return;
   e.respondWith(
     // no-cache: luôn hỏi GitHub xem file có mới không (bỏ qua bộ nhớ đệm 10 phút của trình duyệt)
-    fetch(e.request, { cache: 'no-cache' }).then((res) => {
+    fetch(e.request.mode === 'navigate' ? e.request.url : e.request, { cache: 'no-cache' }).then((res) => {
       const copy = res.clone();
       caches.open(CACHE).then((c) => c.put(e.request, copy));
       return res;
