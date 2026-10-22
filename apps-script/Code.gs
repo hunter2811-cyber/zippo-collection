@@ -277,7 +277,8 @@ function deleteItem_(no) {
 
 function folder_() { return DriveApp.getFolderById(PHOTO_FOLDER_ID); }
 
-// { no: [{id, name, idx}] } — 12.jpg là ảnh chính, 12_2.jpg, 12_3.jpg… là ảnh phụ
+// { no: [{id, name, idx}] }. Nhận các kiểu tên: 12.jpg, 12_2.jpg, và kiểu đổi tên hàng loạt
+// của Windows: "12 (1).jpg", "12 (2).jpg", "12(3).jpg"… Ảnh có số nhỏ nhất là ảnh chính.
 function photoMap_() {
   const cache = CacheService.getScriptCache();
   const hit = cache.get('photos');
@@ -287,14 +288,15 @@ function photoMap_() {
   while (it.hasNext()) {
     const f = it.next();
     if (f.isTrashed()) continue;
-    const m = f.getName().match(/^(\d+)(?:_(\d+))?\.(jpe?g|png|webp|heic)$/i);
+    const m = f.getName().trim().match(/^(\d+)\s*(?:_\s*(\d+)|\(\s*(\d+)\s*\))?\.(jpe?g|png|webp|heic|gif)$/i);
     if (!m) continue;
     const no = Number(m[1]);
-    (map[no] = map[no] || []).push({ id: f.getId(), name: f.getName(), idx: m[2] ? Number(m[2]) : 1 });
+    const idx = m[2] ? Number(m[2]) : m[3] ? Number(m[3]) : 0;
+    (map[no] = map[no] || []).push({ id: f.getId(), name: f.getName(), idx: idx });
   }
   Object.keys(map).forEach(function (k) { map[k].sort(function (a, b) { return a.idx - b.idx; }); });
   const json = JSON.stringify(map);
-  if (json.length < 90000) cache.put('photos', json, 300);
+  if (json.length < 90000) cache.put('photos', json, 120);
   return map;
 }
 
@@ -304,8 +306,9 @@ function uploadPhoto_(no, base64, mime) {
   if (!no || !base64) throw new Error('Thiếu ảnh.');
   clearPhotoCache_();
   const list = photoMap_()[Number(no)] || [];
+  // Đặt tên giống kiểu Windows: 12 (1).jpg, 12 (2).jpg…
   const nextIdx = list.reduce(function (m, f) { return Math.max(m, f.idx); }, 0) + 1;
-  const name = nextIdx === 1 ? no + '.jpg' : no + '_' + nextIdx + '.jpg';
+  const name = no + ' (' + nextIdx + ').jpg';
   const blob = Utilities.newBlob(Utilities.base64Decode(base64), mime || 'image/jpeg', name);
   const file = folder_().createFile(blob);
   const sheet = ss_().getSheetByName(SHEET_INPUT);

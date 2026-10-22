@@ -578,7 +578,7 @@
         '<button type="button" data-unqueue="' + i + '" aria-label="Bỏ ảnh này" title="Bỏ ảnh này">' + ICON.trash + '</button></div></div>'));
     $('#ePhotos').innerHTML = html.join('');
     const no = editing ? editing.no : 'No.';
-    $('#dropHint').textContent = 'Ảnh được lưu vào thư mục Anh Zippo với tên ' + no + '.jpg, ' + no + '_2.jpg… khi bấm Lưu.';
+    $('#dropHint').textContent = 'Ảnh được lưu vào thư mục Anh Zippo với tên ' + no + ' (1).jpg, ' + no + ' (2).jpg… khi bấm Lưu.';
   }
 
   function addFiles(files) {
