@@ -92,7 +92,7 @@
     try {
       const data = state.key ? await apiPost({ action: 'list' }) : await apiGet();
       store.set(cacheKey, JSON.stringify(data));
-      applyData(data);
+      applyData(data, true);
     } catch (err) {
       if (state.key && /mật khẩu/i.test(err.message)) {
         state.key = '';
@@ -122,8 +122,8 @@
   // Phải khớp API_VERSION trong apps-script/Code.gs
   const API_VERSION = 3;
 
-  function applyData(data) {
-    if (state.owner || data.owner) {
+  function applyData(data, fresh) {
+    if (fresh && data.owner) {
       if ((data.version || 0) < API_VERSION) {
         toast('Apps Script trên Google chưa phải bản mới nhất (đang chạy bản ' + (data.version || 1) + ', cần bản ' + API_VERSION + '). Anh làm lại bước cập nhật Apps Script nhé.');
       }
