@@ -187,7 +187,14 @@ body:not(.owner) .owner-only { display: none !important; }
 .modal.small h2 { margin: 0; font: 700 26px/1.1 var(--display); text-transform: uppercase; }
 .modal.small p { margin: 0; }
 .row-end { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.pass-wrap { position: relative; }
+.pass-wrap input { padding-right: 52px; }
+.pass-toggle { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); width: 44px; height: 40px; border: 0; background: transparent; color: var(--muted); display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; }
+.pass-toggle:hover { color: var(--ink); }
+.pass-toggle .eye-off, .pass-toggle[aria-pressed="true"] .eye-on { display: none; }
+.pass-toggle[aria-pressed="true"] .eye-off { display: block; }
 .error { color: var(--accent); font-size: 13px; min-height: 1em; }
+.error:empty { display: none; }
 
 .detail { width: 1040px; display: none; overflow: hidden; }
 .detail[open] { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }

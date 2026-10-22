@@ -3,12 +3,15 @@
  * Đọc sheet "Data Zippo", ghi vào sheet "Zippo", ảnh trong thư mục "Anh Zippo".
  *
  * Cài đặt: xem README.md trong repo (mục "Cài phần máy chủ").
- * Chỉ cần đổi MẬT KHẨU ở dòng OWNER_PASSWORD bên dưới.
+ *
+ * MẬT KHẨU: lần đầu, gõ mật khẩu vào dòng OWNER_PASSWORD bên dưới rồi chạy hàm setup.
+ * Mật khẩu được cất vào phần cài đặt riêng của script (không ai xem được), nên các lần
+ * cập nhật code sau anh chỉ việc dán code mới, KHÔNG cần gõ lại mật khẩu.
+ * (Không ghi mật khẩu thật lên GitHub vì repo để công khai.)
  */
 
-// ====== ANH CHỈ CẦN SỬA DÒNG NÀY ======
-const OWNER_PASSWORD = 'DOI-MAT-KHAU-O-DAY';
-// ======================================
+// Để trống = dùng mật khẩu đã cất. Muốn đổi mật khẩu: gõ mật khẩu mới vào đây và chạy setup.
+const OWNER_PASSWORD = '';
 
 const SPREADSHEET_ID = '1OjKbmFyFQUGcXwG6HKYbfwo7Hl2eYJAqqQHYpZ9Xkag';
 const PHOTO_FOLDER_ID = '11FN4LKbkDKuGYvTdlA47jtNa52Nkk6-b';
@@ -41,7 +44,7 @@ function doGet(e) {
     const p = (e && e.parameter) || {};
     if (p.action === 'ping') return { ok: true };
     // Khách xem qua GET; chủ đọc qua POST (action "list") để mật khẩu không nằm trên đường link
-    return { ok: true, owner: false, items: readItems_(false), lists: readLists_(), updated: new Date().toISOString() };
+    return { ok: true, owner: false, items: readItems_(false), lists: readLists_(), files: photoFiles_(), updated: new Date().toISOString() };
   });
 }
 
@@ -54,7 +57,7 @@ function doPost(e) {
     try {
       switch (body.action) {
         case 'login': return { ok: true, owner: true };
-        case 'list': return { ok: true, owner: true, items: readItems_(true), lists: readLists_(), updated: new Date().toISOString() };
+        case 'list': return { ok: true, owner: true, items: readItems_(true), lists: readLists_(), files: photoFiles_(), updated: new Date().toISOString() };
         case 'save': return { ok: true, item: saveItem_(body.item || {}) };
         case 'delete': return { ok: true, no: deleteItem_(body.no) };
         case 'uploadPhoto': return { ok: true, photo: uploadPhoto_(body.no, body.data, body.mime) };
@@ -74,8 +77,18 @@ function handle_(fn) {
   return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
 }
 
+function ownerPassword_() {
+  const props = PropertiesService.getScriptProperties();
+  if (OWNER_PASSWORD) {
+    if (props.getProperty('OWNER_PASSWORD') !== OWNER_PASSWORD) props.setProperty('OWNER_PASSWORD', OWNER_PASSWORD);
+    return OWNER_PASSWORD;
+  }
+  return props.getProperty('OWNER_PASSWORD') || '';
+}
+
 function isOwner_(key) {
-  return !!key && OWNER_PASSWORD !== 'DOI-MAT-KHAU-O-DAY' && String(key) === OWNER_PASSWORD;
+  const pass = ownerPassword_();
+  return !!key && !!pass && String(key) === pass;
 }
 
 // ---------- Đọc dữ liệu ----------
@@ -277,30 +290,42 @@ function deleteItem_(no) {
 
 function folder_() { return DriveApp.getFolderById(PHOTO_FOLDER_ID); }
 
-// { no: [{id, name, idx}] }. Nhận các kiểu tên: 12.jpg, 12_2.jpg, và kiểu đổi tên hàng loạt
-// của Windows: "12 (1).jpg", "12 (2).jpg", "12(3).jpg"… Ảnh có số nhỏ nhất là ảnh chính.
-function photoMap_() {
+// Tên ảnh hợp lệ: bắt đầu bằng số No., VD "12.jpg", "12 (1).jpg", "12(2).jpg", "12_3.jpg", "12-4.jpg".
+// Ảnh có số phụ nhỏ nhất là ảnh chính. (Trang web cũng tự đọc tên ảnh theo đúng quy tắc này.)
+const PHOTO_NAME = /^(\d+)\s*(?:[_\-\s]\s*(\d+)|\(\s*(\d+)\s*\))?\s*\.(jpe?g|png|webp|heic|gif)$/i;
+
+// Danh sách mọi file ảnh trong thư mục: [{n: tên, id}]
+function photoFiles_() {
   const cache = CacheService.getScriptCache();
-  const hit = cache.get('photos');
+  const hit = cache.get('files');
   if (hit) return JSON.parse(hit);
-  const map = {};
+  const files = [];
   const it = folder_().getFiles();
   while (it.hasNext()) {
     const f = it.next();
     if (f.isTrashed()) continue;
-    const m = f.getName().trim().match(/^(\d+)\s*(?:_\s*(\d+)|\(\s*(\d+)\s*\))?\.(jpe?g|png|webp|heic|gif)$/i);
-    if (!m) continue;
+    files.push({ n: f.getName().trim(), id: f.getId() });
+  }
+  const json = JSON.stringify(files);
+  if (json.length < 90000) cache.put('files', json, 120);
+  return files;
+}
+
+// { no: [{id, name, idx}] }
+function photoMap_() {
+  const map = {};
+  photoFiles_().forEach(function (f) {
+    const m = f.n.match(PHOTO_NAME);
+    if (!m) return;
     const no = Number(m[1]);
     const idx = m[2] ? Number(m[2]) : m[3] ? Number(m[3]) : 0;
-    (map[no] = map[no] || []).push({ id: f.getId(), name: f.getName(), idx: idx });
-  }
+    (map[no] = map[no] || []).push({ id: f.id, name: f.n, idx: idx });
+  });
   Object.keys(map).forEach(function (k) { map[k].sort(function (a, b) { return a.idx - b.idx; }); });
-  const json = JSON.stringify(map);
-  if (json.length < 90000) cache.put('photos', json, 120);
   return map;
 }
 
-function clearPhotoCache_() { CacheService.getScriptCache().remove('photos'); }
+function clearPhotoCache_() { CacheService.getScriptCache().removeAll(['files', 'photos']); }
 
 function uploadPhoto_(no, base64, mime) {
   if (!no || !base64) throw new Error('Thiếu ảnh.');
@@ -350,8 +375,10 @@ function setMainPhoto_(no, id) {
 
 /** Bấm Run hàm này một lần: tạo sheet "Danh mục" và cho phép xem ảnh qua link. */
 function setup() {
+  if (!ownerPassword_()) throw new Error('Anh gõ mật khẩu vào dòng OWNER_PASSWORD rồi chạy lại setup nhé.');
   listsSheet_();
   folder_().setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   clearPhotoCache_();
-  Logger.log('Xong. Số Zippo đọc được: ' + readItems_(true).length);
+  Logger.log('Xong. Đã lưu mật khẩu. Số Zippo đọc được: ' + readItems_(true).length +
+    ', số ảnh: ' + Object.keys(photoMap_()).length + ' chiếc có ảnh.');
 }

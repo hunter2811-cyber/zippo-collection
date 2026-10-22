@@ -15,7 +15,7 @@ Web xem và quản lý bộ sưu tập Zippo, chạy trên máy tính và điệ
 1. Mở Google Sheet **My collection**.
 2. Menu **Tiện ích mở rộng → Apps Script** (*Extensions → Apps Script*).
 3. Xoá hết chữ có sẵn trong ô soạn thảo, rồi dán toàn bộ nội dung file [`apps-script/Code.gs`](apps-script/Code.gs).
-4. Ở dòng `const OWNER_PASSWORD = 'DOI-MAT-KHAU-O-DAY';`, thay chữ `DOI-MAT-KHAU-O-DAY` bằng mật khẩu anh muốn (giữ nguyên hai dấu nháy `'`).
+4. **Chỉ lần đầu:** ở dòng `const OWNER_PASSWORD = '';`, gõ mật khẩu vào giữa hai dấu nháy, VD `const OWNER_PASSWORD = 'matkhau';`. Khi chạy `setup` (bước 2), mật khẩu được cất vào cài đặt riêng của script. Các lần cập nhật code sau **không cần gõ lại**. Đừng ghi mật khẩu thật lên GitHub vì repo để công khai.
 5. Bấm biểu tượng 💾 **Lưu**.
 
 ### 2. Chạy cài đặt lần đầu
@@ -30,7 +30,7 @@ Web xem và quản lý bộ sưu tập Zippo, chạy trên máy tính và điệ
 3. **Thực thi dưới dạng:** *Tôi* (Me). **Người có quyền truy cập:** *Bất kỳ ai* (Anyone).
 4. Bấm **Triển khai**, rồi **sao chép đường link Web app** (kết thúc bằng `/exec`) và gửi cho em.
 
-> Sau này nếu sửa `Code.gs`, vào **Triển khai → Quản lý triển khai → ✏ Sửa → Phiên bản: Phiên bản mới → Triển khai** để giữ nguyên đường link.
+> Sau này khi cập nhật `Code.gs`: dán code mới (để nguyên dòng mật khẩu trống), bấm Lưu, rồi vào **Triển khai → Quản lý triển khai → ✏ Sửa → Phiên bản: Phiên bản mới → Triển khai** để giữ nguyên đường link.
 
 ### 4. Bật GitHub Pages
 1. Vào repo `zippo-collection` trên GitHub → **Settings → Pages**.

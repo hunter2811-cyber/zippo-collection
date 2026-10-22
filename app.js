@@ -105,8 +105,23 @@
     }
   }
 
+  // Đọc tên ảnh trong thư mục Anh Zippo: "12.jpg", "12 (1).jpg", "12(2).jpg", "12_3.jpg", "12-4.jpg"…
+  // Ảnh có số phụ nhỏ nhất là ảnh chính.
+  const PHOTO_NAME = /^(\d+)\s*(?:[_\-\s]\s*(\d+)|\(\s*(\d+)\s*\))?\s*\.(jpe?g|png|webp|heic|gif)$/i;
+  function attachPhotos(items, files) {
+    const map = {};
+    files.forEach((f) => {
+      const m = String(f.n).trim().match(PHOTO_NAME);
+      if (!m) return;
+      const idx = m[2] ? Number(m[2]) : m[3] ? Number(m[3]) : 0;
+      (map[Number(m[1])] = map[Number(m[1])] || []).push([idx, f.id]);
+    });
+    items.forEach((it) => { it.photos = (map[it.no] || []).sort((a, b) => a[0] - b[0]).map((e) => e[1]); });
+  }
+
   function applyData(data) {
     state.items = data.items || [];
+    if (Array.isArray(data.files)) attachPhotos(state.items, data.files);
     state.lists = data.lists || state.lists;
     setOwner(!!data.owner);
     renderFilters();
@@ -470,8 +485,16 @@
     }
     $('#lError').textContent = '';
     $('#lPass').value = '';
+    showPass(false);
     $('#login').showModal();
   });
+
+  function showPass(on) {
+    $('#lPass').type = on ? 'text' : 'password';
+    $('#lShow').setAttribute('aria-pressed', on);
+    $('#lShow').setAttribute('aria-label', on ? 'Ẩn mật khẩu' : 'Hiện mật khẩu');
+  }
+  $('#lShow').addEventListener('click', () => { showPass($('#lPass').type === 'password'); $('#lPass').focus(); });
 
   $('#loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
