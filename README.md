@@ -3,8 +3,9 @@
 Web xem và quản lý bộ sưu tập Zippo, chạy trên máy tính và điện thoại, có icon riêng trên Android.
 
 - **Dữ liệu:** Google Sheet "My collection" của anh. Web đọc sheet **Data Zippo**; thêm/sửa thì ghi vào sheet **Zippo**.
-- **Ảnh:** thư mục **Anh Zippo** trên Google Drive, đặt tên theo No. Web nhận các kiểu: `12 (1).jpg`, `12 (2).jpg`, `12(3).jpg`… (kiểu đổi tên hàng loạt của Windows), hoặc `12.jpg`, `12_2.jpg`. Ảnh có số nhỏ nhất là ảnh chính.
-- **Khách** chỉ thấy tên, SKU, Case, Finish, Code, Code Year và ảnh.
+- **Ảnh:** thư mục **Anh Zippo** trên Google Drive, đặt tên theo No.: `12.jpg` là ảnh chính, `12_2.jpg`, `12_3.jpg`… là ảnh phụ.
+- **Khách** chỉ thấy tên, SKU, Case, Finish, Collection, Code, Code Year và ảnh.
+- Web tìm cột theo **tiêu đề cột**, nên anh chèn thêm cột vào sheet vẫn được; chỉ cần giữ nguyên tên các tiêu đề cũ.
 - **Chủ** (sau khi nhập mật khẩu) thấy thêm giá, ngày mua, tình trạng, nơi mua, xuất xứ, ghi chú, và được thêm/sửa/xoá.
 
 ---
@@ -45,10 +46,10 @@ Web xem và quản lý bộ sưu tập Zippo, chạy trên máy tính và điệ
 - **Chia sẻ cho bạn bè:** gửi đường link web. Người khác chỉ xem được ở chế độ khách.
 - **Gửi link một chiếc cụ thể:** mở chiếc đó, rồi sao chép đường link trên trình duyệt (có dạng `…/#no=12`).
 - **Thêm Zippo:** bấm **Thêm Zippo**, điền thông tin, chọn ảnh từ máy ảnh, bấm Lưu. Ảnh được tự thu nhỏ và lưu vào thư mục Anh Zippo.
-- **Thêm ảnh trực tiếp trên Drive:** trên Windows, chọn hết ảnh của một chiếc → bấm F2 → gõ số No. (VD `125`) → Enter, Windows tự đặt `125 (1).jpg`, `125 (2).jpg`… Chép vào thư mục **Anh Zippo**, web hiện ảnh trong vòng 2 phút.
+- **Thêm ảnh trực tiếp trên Drive:** đặt tên `125.jpg` cho ảnh chính, `125_2.jpg`, `125_3.jpg`… cho ảnh phụ, rồi chép vào thư mục **Anh Zippo**. Web hiện ảnh trong vòng 2 phút.
 - **Vẫn nhập trên Google Sheet như cũ được:** nhập thêm dòng vào sheet Zippo, web tự cập nhật lần mở sau.
 - **Sửa danh sách Case/Finish trong form thêm mới:** sửa tab **Danh mục** trong Google Sheet.
-- **Bộ lọc** Case/Finish/Code Year/Năm mua tự lấy theo dữ liệu thật trong sheet, nên khi anh chuẩn hoá tên Finish trong sheet thì bộ lọc tự gọn lại.
+- **Bộ lọc** Collection/Case/Finish/Code Year/Năm mua tự lấy theo dữ liệu thật trong sheet, nên khi anh chuẩn hoá tên Finish trong sheet thì bộ lọc tự gọn lại.
 
 ## Cài icon lên điện thoại Android
 1. Mở web bằng **Chrome** trên điện thoại.
