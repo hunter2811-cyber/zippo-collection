@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bộ sưu tập Zippo</title>
+<meta name="description" content="Bộ sưu tập bật lửa Zippo">
+<meta name="theme-color" content="#141414">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="#" data-nav="collection">Bộ sưu tập Zippo</a>
+  <nav class="tabs" aria-label="Điều hướng chính">
+    <button type="button" class="tab is-active" data-nav="collection">Bộ sưu tập</button>
+    <button type="button" class="tab" data-nav="stats">Thống kê</button>
+  </nav>
+  <div class="grow"></div>
+  <label class="search" for="q">
+    <span class="sr-only">Tìm kiếm</span>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+    <input id="q" type="search" placeholder="Tìm theo tên, mã, Finish…" autocomplete="off">
+  </label>
+  <button type="button" class="btn btn-accent owner-only" id="addBtn">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Thêm Zippo</span>
+  </button>
+  <button type="button" class="icon-btn" id="accountBtn" aria-label="Đăng nhập chủ sở hữu">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+  </button>
+</header>
+
+<div class="layout" id="collectionView">
+  <aside class="filters" id="filters" aria-label="Bộ lọc">
+    <div class="sheet-handle" aria-hidden="true"></div>
+    <div class="filters-head">
+      <h2>Bộ lọc</h2>
+      <button type="button" class="link-btn" id="clearFilters">Xoá hết</button>
+      <button type="button" class="icon-btn sheet-close" id="closeFilters" aria-label="Đóng bộ lọc">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="filter-groups" id="filterGroups"></div>
+    <div class="sheet-foot">
+      <button type="button" class="btn btn-ghost" id="sheetClear">Bỏ chọn</button>
+      <button type="button" class="btn btn-dark" id="sheetApply">Xem kết quả</button>
+    </div>
+  </aside>
+  <div class="backdrop" id="filtersBackdrop" hidden></div>
+
+  <main class="content">
+    <div class="toolbar">
+      <button type="button" class="btn btn-ghost filter-toggle" id="openFilters">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+        <span>Bộ lọc</span><span class="badge" id="filterBadge" hidden></span>
+      </button>
+      <p class="summary" id="summary" aria-live="polite">Đang tải…</p>
+      <label class="sort">
+        <span class="sr-only">Sắp xếp</span>
+        <select id="sort"></select>
+      </label>
+      <div class="view-switch" role="group" aria-label="Kiểu hiển thị">
+        <button type="button" class="icon-btn is-active" data-view="grid" aria-label="Xem dạng lưới" aria-pressed="true">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><rect x="14" y="14" width="6" height="6"/></svg>
+        </button>
+        <button type="button" class="icon-btn" data-view="list" aria-label="Xem dạng danh sách" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="chips-active" id="activeChips"></div>
+    <div class="grid" id="grid"></div>
+    <p class="empty" id="empty" hidden>Không có chiếc Zippo nào khớp bộ lọc.</p>
+  </main>
+</div>
+
+<main class="stats" id="statsView" hidden></main>
+
+<!-- Chi tiết -->
+<dialog class="modal detail" id="detail" aria-labelledby="dTitle">
+  <div class="detail-media">
+    <div class="detail-img" id="dImg"></div>
+    <div class="thumbs" id="dThumbs"></div>
+  </div>
+  <div class="detail-info">
+    <div class="detail-top">
+      <span class="no-badge" id="dNo"></span>
+      <div class="grow"></div>
+      <button type="button" class="icon-btn" id="dPrev" aria-label="Chiếc trước"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <button type="button" class="icon-btn" id="dNext" aria-label="Chiếc sau"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+      <button type="button" class="icon-btn" data-close aria-label="Đóng"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <h2 id="dTitle"></h2>
+    <dl class="facts" id="dFacts"></dl>
+    <section class="private owner-only" id="dPrivate" aria-label="Thông tin riêng tư"></section>
+    <div class="detail-actions owner-only">
+      <button type="button" class="btn btn-ghost danger" id="dDelete">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>Xoá
+      </button>
+      <button type="button" class="btn btn-dark" id="dEdit">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/></svg>Sửa
+      </button>
+    </div>
+  </div>
+</dialog>
+
+<!-- Thêm / sửa -->
+<dialog class="modal editor" id="editor" aria-labelledby="eTitle">
+  <form id="editForm" novalidate>
+    <div class="editor-head">
+      <h2 id="eTitle">Thêm Zippo</h2>
+      <div class="grow"></div>
+      <button type="button" class="icon-btn" data-close aria-label="Đóng"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <div class="editor-body">
+      <section class="photo-panel" aria-labelledby="phTitle">
+        <h3 id="phTitle">Ảnh</h3>
+        <div class="photo-list" id="ePhotos"></div>
+        <label class="drop" id="drop">
+          <input type="file" id="eFiles" accept="image/*" multiple>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+          <strong>Chọn ảnh hoặc kéo ảnh vào đây</strong>
+          <span id="dropHint">Ảnh được lưu vào thư mục Anh Zippo, đặt tên theo No.</span>
+        </label>
+      </section>
+      <div class="fieldsets">
+        <fieldset>
+          <legend>Thông tin công khai</legend>
+          <div class="field span2"><label for="fName">Tên *</label><input id="fName" name="name" required></div>
+          <div class="field"><label for="fSku">SKU</label><input id="fSku" name="sku" placeholder="VD: 24293"></div>
+          <div class="field"><label for="fNo">No.</label><input id="fNo" name="no" inputmode="numeric" readonly></div>
+          <div class="field wide"><label for="fCase">Case</label><select id="fCase" name="caseType"></select>
+            <input id="fCaseOther" class="other" placeholder="Nhập Case khác" hidden></div>
+          <div class="field wide"><label for="fFinish">Finish</label><select id="fFinish" name="finish"></select>
+            <input id="fFinishOther" class="other" placeholder="Nhập Finish khác" hidden></div>
+          <div class="field"><label for="fLeft">Code trái</label><input id="fLeft" name="left" placeholder="VD: C" autocapitalize="characters"></div>
+          <div class="field"><label for="fRight">Code phải</label><input id="fRight" name="right" placeholder="VD: 23"></div>
+          <p class="computed span2" id="fCodeYear">Code Year tự tính khi lưu</p>
+        </fieldset>
+        <fieldset class="private-set">
+          <legend><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Riêng tư · khách không thấy</legend>
+          <div class="field"><label for="fPrice">Giá mua (nghìn đ)</label><input id="fPrice" name="price" inputmode="decimal" placeholder="VD: 1400"></div>
+          <div class="field"><label for="fDate">Ngày mua</label><input id="fDate" name="date" type="date"></div>
+          <div class="field"><label for="fCaseCond">Tình trạng vỏ</label><select id="fCaseCond" name="caseCond"></select></div>
+          <div class="field"><label for="fInsertsCond">Tình trạng ruột</label><select id="fInsertsCond" name="insertsCond"></select></div>
+          <div class="field wide"><label for="fBuyFrom">Mua tại</label><input id="fBuyFrom" name="buyFrom" list="dlBuyFrom"></div>
+          <div class="field wide"><label for="fOrigin">Xuất xứ</label><input id="fOrigin" name="origin" list="dlOrigin"></div>
+          <div class="field span2"><label for="fNote">Ghi chú</label><textarea id="fNote" name="note" rows="2" placeholder="Phiên bản giới hạn, quà tặng…"></textarea></div>
+        </fieldset>
+        <datalist id="dlBuyFrom"></datalist>
+        <datalist id="dlOrigin"></datalist>
+      </div>
+    </div>
+    <div class="editor-foot">
+      <p class="hint" id="eStatus">Lưu xong, dữ liệu được ghi thẳng vào sheet Zippo trên Google Drive của anh.</p>
+      <button type="button" class="btn btn-ghost" data-close>Huỷ</button>
+      <button type="submit" class="btn btn-accent" id="eSave">Lưu</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Đăng nhập -->
+<dialog class="modal small" id="login" aria-labelledby="lTitle">
+  <form id="loginForm">
+    <h2 id="lTitle">Chế độ chủ sở hữu</h2>
+    <p class="muted">Nhập mật khẩu để xem giá, ngày mua, tình trạng và để thêm/sửa Zippo. Máy này sẽ nhớ đăng nhập.</p>
+    <div class="field"><label for="lPass">Mật khẩu</label><input id="lPass" type="password" autocomplete="current-password" required></div>
+    <p class="error" id="lError" role="alert"></p>
+    <div class="row-end">
+      <button type="button" class="btn btn-ghost" data-close>Huỷ</button>
+      <button type="submit" class="btn btn-dark">Đăng nhập</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="modal small" id="confirm" aria-labelledby="cTitle">
+  <form method="dialog">
+    <h2 id="cTitle"></h2>
+    <p class="muted" id="cText"></p>
+    <div class="row-end">
+      <button value="no" class="btn btn-ghost">Huỷ</button>
+      <button value="yes" class="btn btn-danger" id="cYes">Xoá</button>
+    </div>
+  </form>
+</dialog>
+
+<nav class="bottom-nav" aria-label="Điều hướng">
+  <button type="button" class="is-active" data-nav="collection">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><rect x="14" y="14" width="6" height="6"/></svg>Bộ sưu tập
+  </button>
+  <button type="button" data-nav="stats">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>Thống kê
+  </button>
+</nav>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
