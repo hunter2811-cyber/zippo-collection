@@ -159,8 +159,21 @@
     return m;
   }
 
+  // Đếm theo các bộ lọc đang chọn ở nhóm KHÁC (và ô tìm kiếm) — như bộ lọc của zippo.com
+  function facet(field, keyOf) {
+    const m = new Map();
+    state.items.forEach((it) => {
+      if (!matches(it, field)) return;
+      const v = keyOf ? keyOf(it) : it[field];
+      if (v === '' || v == null) return;
+      m.set(v, (m.get(v) || 0) + 1);
+    });
+    return m;
+  }
+
   function optHtml(group, value, label, count, checked) {
-    return '<label class="opt"><input type="checkbox" data-group="' + group + '" value="' + esc(value) + '"' + (checked ? ' checked' : '') + '>' +
+    const off = !count && !checked; // bằng 0 thì làm mờ, không chọn được (trừ mục đang chọn để còn bỏ chọn)
+    return '<label class="opt' + (off ? ' is-zero' : '') + '"><input type="checkbox" data-group="' + group + '" value="' + esc(value) + '"' + (checked ? ' checked' : '') + (off ? ' disabled' : '') + '>' +
       '<span class="label">' + esc(label) + '</span><span class="count">' + count + '</span></label>';
   }
 
@@ -181,7 +194,10 @@
     // Nhóm lọc theo giá trị thật trong sheet, nhiều nhất lên đầu; dài quá thì hiện 10–12 mục + "Xem thêm"
     const limit = window.matchMedia('(max-width: 799px)').matches ? 12 : 10;
     const valueGroup = (key, title) => {
-      const all = Array.from(countBy(key)).sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])));
+      const totals = countBy(key);
+      const now = facet(key);
+      const all = Array.from(totals.keys()).map((v) => [v, now.get(v) || 0, totals.get(v)])
+        .sort((a, b) => b[1] - a[1] || b[2] - a[2] || String(a[0]).localeCompare(String(b[0])));
       if (!all.length) return;
       const open = state.more.has(key);
       const collapse = all.length > limit + 3; // chỉ thu gọn khi dư nhiều, tránh "Xem thêm 1 loại"
@@ -202,9 +218,9 @@
     state.items.forEach((it) => {
       const d = decadeOf(it.codeYear);
       if (!years.has(d)) years.set(d, new Map());
-      const y = it.codeYear || 'none';
-      years.get(d).set(y, (years.get(d).get(y) || 0) + 1);
+      years.get(d).set(it.codeYear || 'none', 0);
     });
+    facet('codeYear', (it) => it.codeYear || 'none').forEach((n, y) => years.get(decadeOf(y === 'none' ? null : y)).set(y, n));
     const decades = Array.from(years.keys()).sort((a, b) => (a === 'none') - (b === 'none') || a - b);
     const cyBody = decades.map((d) => {
       const ys = Array.from(years.get(d)).sort((a, b) => a[0] - b[0]);
@@ -212,23 +228,28 @@
       const allOn = ys.every(([y]) => f.codeYear.has(String(y)));
       const someOn = ys.some(([y]) => f.codeYear.has(String(y)));
       const open = state.decadesOpen.has(String(d));
+      const off = !total && !someOn;
       let out = '<div class="decade"><div class="decade-row">' +
-        '<label class="opt"><input type="checkbox" data-decade="' + d + '"' + (allOn ? ' checked' : '') + (someOn && !allOn ? ' data-partial' : '') + '>' +
+        '<label class="opt' + (off ? ' is-zero' : '') + '"><input type="checkbox" data-decade="' + d + '"' + (allOn ? ' checked' : '') + (someOn && !allOn ? ' data-partial' : '') + (off ? ' disabled' : '') + '>' +
         '<span class="label">' + decadeLabel(d) + '</span><span class="count">' + total + '</span></label>';
       if (d !== 'none') {
         out += '<button type="button" class="decade-toggle" data-decade-open="' + d + '" aria-expanded="' + open + '" aria-label="Xem từng năm ' + decadeLabel(d) + '">' + (open ? ICON.up : ICON.down) + '</button>';
       }
       out += '</div>';
       if (open) {
-        out += '<div class="decade-years">' + ys.map(([y, n]) => '<button type="button" class="chip' + (f.codeYear.has(String(y)) ? ' is-on' : '') + '" data-year="' + y + '" aria-pressed="' + f.codeYear.has(String(y)) + '">' + y + ' <span class="count">' + n + '</span></button>').join('') + '</div>';
+        out += '<div class="decade-years">' + ys.map(([y, n]) => {
+          const on = f.codeYear.has(String(y));
+          return '<button type="button" class="chip' + (on ? ' is-on' : '') + (!n && !on ? ' is-zero' : '') + '" data-year="' + y + '" aria-pressed="' + on + '"' + (!n && !on ? ' disabled' : '') + '>' + y + ' <span class="count">' + n + '</span></button>';
+        }).join('') + '</div>';
       }
       return out + '</div>';
     }).join('');
     html.push(groupHtml('codeYear', 'Code Year', cyBody));
 
     if (state.owner) {
-      const yp = Array.from(countBy('yearPurchase')).sort((a, b) => a[0] - b[0]);
-      html.push(groupHtml('yearPurchase', 'Năm mua', yp.map(([v, n]) => optHtml('yearPurchase', v, v, n, f.yearPurchase.has(String(v)))).join(''), true));
+      const now = facet('yearPurchase');
+      const yp = Array.from(countBy('yearPurchase').keys()).sort((a, b) => a - b);
+      html.push(groupHtml('yearPurchase', 'Năm mua', yp.map((v) => optHtml('yearPurchase', v, v, now.get(v) || 0, f.yearPurchase.has(String(v)))).join(''), true));
     }
 
     $('#filterGroups').innerHTML = html.join('');
@@ -312,13 +333,14 @@
   }
   $('#sort').addEventListener('change', (e) => { state.sort = e.target.value; savePrefs(); render(); });
 
-  function matches(it) {
+  // skip: bỏ qua bộ lọc của nhóm này (dùng để đếm số lượng cho chính nhóm đó)
+  function matches(it, skip) {
     const f = state.filters;
-    if (f.collection.size && !f.collection.has(it.collection)) return false;
-    if (f.caseType.size && !f.caseType.has(it.caseType)) return false;
-    if (f.finish.size && !f.finish.has(it.finish)) return false;
-    if (f.codeYear.size && !f.codeYear.has(String(it.codeYear || 'none'))) return false;
-    if (f.yearPurchase.size && !f.yearPurchase.has(String(it.yearPurchase))) return false;
+    if (skip !== 'collection' && f.collection.size && !f.collection.has(it.collection)) return false;
+    if (skip !== 'caseType' && f.caseType.size && !f.caseType.has(it.caseType)) return false;
+    if (skip !== 'finish' && f.finish.size && !f.finish.has(it.finish)) return false;
+    if (skip !== 'codeYear' && f.codeYear.size && !f.codeYear.has(String(it.codeYear || 'none'))) return false;
+    if (skip !== 'yearPurchase' && f.yearPurchase.size && !f.yearPurchase.has(String(it.yearPurchase))) return false;
     if (state.q) {
       const hay = [it.no, it.name, it.sku, it.collection, it.caseType, it.finish, it.code, it.codeYear, it.note, it.buyFrom, it.origin].join(' ').toLowerCase();
       const words = state.q.toLowerCase().split(/\s+/).filter(Boolean);
@@ -351,7 +373,7 @@
   }
 
   function render() {
-    state.shown = state.items.filter(matches).sort(sorter());
+    state.shown = state.items.filter((it) => matches(it)).sort(sorter());
     const grid = $('#grid');
     grid.classList.toggle('is-list', state.view === 'list');
     grid.innerHTML = state.shown.map(cardHtml).join('');
@@ -397,7 +419,7 @@
   let qTimer;
   $('#q').addEventListener('input', (e) => {
     clearTimeout(qTimer);
-    qTimer = setTimeout(() => { state.q = e.target.value.trim(); render(); }, 150);
+    qTimer = setTimeout(() => { state.q = e.target.value.trim(); renderFilters(); render(); }, 150);
   });
   $$('.view-switch .icon-btn').forEach((b) => b.addEventListener('click', () => { state.view = b.dataset.view; savePrefs(); render(); }));
   $('#grid').addEventListener('click', (e) => {

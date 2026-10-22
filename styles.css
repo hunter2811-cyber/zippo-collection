@@ -125,6 +125,8 @@ body:not(.owner) .owner-only { display: none !important; }
 .chip.is-on { background: var(--ink); border-color: var(--ink); color: #fff; }
 .chip .count { color: inherit; opacity: .65; font-size: 11px; }
 .more-btn { align-self: flex-start; margin-top: 4px; }
+.opt.is-zero, .chip.is-zero { opacity: .38; cursor: not-allowed; }
+.chip.is-zero { pointer-events: none; }
 
 .content { flex-grow: 1; min-width: 0; padding: 24px 32px 48px; }
 .toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
