@@ -119,7 +119,15 @@
     items.forEach((it) => { it.photos = (map[it.no] || []).sort((a, b) => a[0] - b[0]).map((e) => e[1]); });
   }
 
+  // Phải khớp API_VERSION trong apps-script/Code.gs
+  const API_VERSION = 3;
+
   function applyData(data) {
+    if (state.owner || data.owner) {
+      if ((data.version || 0) < API_VERSION) {
+        toast('Apps Script trên Google chưa phải bản mới nhất (đang chạy bản ' + (data.version || 1) + ', cần bản ' + API_VERSION + '). Anh làm lại bước cập nhật Apps Script nhé.');
+      }
+    }
     state.items = data.items || [];
     if (Array.isArray(data.files)) attachPhotos(state.items, data.files);
     state.lists = data.lists || state.lists;
@@ -783,7 +791,7 @@
     t.hidden = false;
     if (action) t.querySelector('button').onclick = () => { t.hidden = true; onAction(); };
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { t.hidden = true; }, action ? 8000 : 3500);
+    toastTimer = setTimeout(() => { t.hidden = true; }, action || msg.length > 80 ? 10000 : 3500);
   }
 
   // ---------- Thống kê ----------

@@ -13,6 +13,9 @@
 // Để trống = dùng mật khẩu đã cất. Muốn đổi mật khẩu: gõ mật khẩu mới vào đây và chạy setup.
 const OWNER_PASSWORD = '';
 
+// Số phiên bản: trang web so với số này để báo khi Apps Script chưa được cập nhật
+const API_VERSION = 3;
+
 const SPREADSHEET_ID = '1OjKbmFyFQUGcXwG6HKYbfwo7Hl2eYJAqqQHYpZ9Xkag';
 const PHOTO_FOLDER_ID = '11FN4LKbkDKuGYvTdlA47jtNa52Nkk6-b';
 const SHEET_INPUT = 'Zippo';
@@ -79,9 +82,9 @@ function dataCols_(headerRow) {
 function doGet(e) {
   return handle_(function () {
     const p = (e && e.parameter) || {};
-    if (p.action === 'ping') return { ok: true };
+    if (p.action === 'ping') return { ok: true, version: API_VERSION };
     // Khách xem qua GET; chủ đọc qua POST (action "list") để mật khẩu không nằm trên đường link
-    return { ok: true, owner: false, items: readItems_(false), lists: readLists_(), files: photoFiles_(), updated: new Date().toISOString() };
+    return { ok: true, version: API_VERSION, owner: false, items: readItems_(false), lists: readLists_(), files: photoFiles_(), updated: new Date().toISOString() };
   });
 }
 
@@ -94,7 +97,7 @@ function doPost(e) {
     try {
       switch (body.action) {
         case 'login': return { ok: true, owner: true };
-        case 'list': return { ok: true, owner: true, items: readItems_(true), lists: readLists_(), files: photoFiles_(), updated: new Date().toISOString() };
+        case 'list': return { ok: true, version: API_VERSION, owner: true, items: readItems_(true), lists: readLists_(), files: photoFiles_(), updated: new Date().toISOString() };
         case 'save': return { ok: true, item: saveItem_(body.item || {}) };
         case 'delete': return { ok: true, no: deleteItem_(body.no) };
         case 'uploadPhoto': return { ok: true, photo: uploadPhoto_(body.no, body.data, body.mime) };
