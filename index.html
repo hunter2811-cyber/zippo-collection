@@ -140,8 +140,11 @@
             <input id="fFinishOther" class="other" placeholder="Nhập Finish khác" hidden></div>
           <div class="field"><label for="fLeft">Code trái</label><input id="fLeft" name="left" placeholder="VD: C" autocapitalize="characters"></div>
           <div class="field"><label for="fRight">Code phải</label><input id="fRight" name="right" placeholder="VD: 23"></div>
-          <div class="field span2"><label for="fCollection">Collection</label><input id="fCollection" name="collection" list="dlCollection" placeholder="VD: Harley Davidson"></div>
           <p class="computed span2" id="fCodeYear">Code Year tự tính khi lưu</p>
+          <div class="field span2"><label for="fCollection">Collection</label>
+            <div class="tokens" id="tkCollection"><input id="fCollection" list="dlCollection" placeholder="Gõ rồi Enter, VD: Nippon" autocomplete="off"></div></div>
+          <div class="field span2"><label for="fTag">Tag</label>
+            <div class="tokens" id="tkTag"><input id="fTag" list="dlTag" placeholder="Gõ rồi Enter, VD: Emblem" autocomplete="off"></div></div>
         </fieldset>
         <fieldset class="private-set">
           <legend><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Riêng tư · khách không thấy</legend>
@@ -156,6 +159,7 @@
         <datalist id="dlBuyFrom"></datalist>
         <datalist id="dlOrigin"></datalist>
         <datalist id="dlCollection"></datalist>
+        <datalist id="dlTag"></datalist>
       </div>
     </div>
     <div class="editor-foot">

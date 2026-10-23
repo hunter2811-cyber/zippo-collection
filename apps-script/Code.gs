@@ -14,7 +14,7 @@
 const OWNER_PASSWORD = '';
 
 // Số phiên bản: trang web so với số này để báo khi Apps Script chưa được cập nhật
-const API_VERSION = 3;
+const API_VERSION = 4;
 
 const SPREADSHEET_ID = '1OjKbmFyFQUGcXwG6HKYbfwo7Hl2eYJAqqQHYpZ9Xkag';
 const PHOTO_FOLDER_ID = '11FN4LKbkDKuGYvTdlA47jtNa52Nkk6-b';
@@ -35,12 +35,12 @@ const INPUT_HEADERS = [
   ['no', 1, 'No.'], ['name', 1, 'Name'], ['sku', 1, 'SKU'], ['caseType', 1, 'Case'], ['finish', 1, 'Finish'],
   ['left', 2, 'Left'], ['right', 2, 'Right'], ['qlt', 2, 'QLT'], ['price', 2, 'Price'], ['date', 2, 'Date'],
   ['caseCond', 2, 'Case'], ['insertsCond', 2, 'Inserts'], ['buyFrom', 1, 'Buy From'], ['origin', 1, 'Country of origin'],
-  ['note', 1, 'Note'], ['collection', 1, 'Collection'], ['pic', 2, 'Pic'],
+  ['note', 1, 'Note'], ['collection', 1, 'Collection'], ['tag', 1, 'Tag'], ['pic', 2, 'Pic'],
 ];
 const DATA_HEADERS = {
   no: 'No.', name: 'Name', sku: 'SKU', caseType: 'Case', finish: 'Finish', code: 'Code', codeYear: 'Code Year',
   price: 'Price', date: 'Date Purchse|Date Purchase', yearPurchase: 'Year Purchse|Year Purchase', caseCond: 'Case cond.',
-  insertsCond: 'Inserts Cond.', buyFrom: 'Buy From', origin: 'Country of origin', note: 'Note', collection: 'Collection',
+  insertsCond: 'Inserts Cond.', buyFrom: 'Buy From', origin: 'Country of origin', note: 'Note', collection: 'Collection', tag: 'Tag',
 };
 const norm_ = function (v) { return String(v == null ? '' : v).replace(/\s+/g, ' ').trim().toLowerCase(); };
 
@@ -140,13 +140,16 @@ function readItems_(owner) {
   const data = ss.getSheetByName(SHEET_DATA).getDataRange().getValues();
   const D = dataCols_(data[0]);
   const v = function (r, k) { return D[k] == null ? '' : r[D[k]]; };
+  const input = ss.getSheetByName(SHEET_INPUT);
+  const L = layout_(input).col;
+  const n = Math.max(data.length - 1, 1);
+  const zcol = function (c) { return c ? input.getRange(FIRST_ROW, c, n, 1).getDisplayValues() : []; };
+  // Tag: lấy ở Data Zippo nếu có cột "Tag", không thì lấy thẳng từ sheet Zippo
+  const tags = D.tag == null ? zcol(L.tag) : null;
   let codes = [];
   if (owner) {
-    const input = ss.getSheetByName(SHEET_INPUT);
-    const L = layout_(input).col;
-    const n = Math.max(data.length - 1, 1);
-    const left = input.getRange(FIRST_ROW, L.left, n, 1).getDisplayValues();
-    const right = input.getRange(FIRST_ROW, L.right, n, 1).getDisplayValues();
+    const left = zcol(L.left);
+    const right = zcol(L.right);
     codes = left.map(function (r, i) { return [r[0], right[i][0]]; });
   }
   const photos = photoMap_();
@@ -166,6 +169,7 @@ function readItems_(owner) {
       code: clean_(v(r, 'code')) === '-' ? '' : clean_(v(r, 'code')),
       codeYear: num_(v(r, 'codeYear')),
       collection: clean_(v(r, 'collection')),
+      tag: clean_(tags ? (tags[i - 1] || [''])[0] : v(r, 'tag')),
       photos: (photos[no] || []).map(function (f) { return f.id; }),
     };
     if (owner) {
@@ -273,7 +277,7 @@ function saveItem_(item) {
     no: Number(item.no), name: item.name, sku: item.sku, caseType: item.caseType, finish: item.finish,
     left: item.left, right: codeRight_(item.right), price: item.price === '' || item.price == null ? '' : Number(item.price),
     date: item.date ? parseDate_(item.date) : '', caseCond: item.caseCond, insertsCond: item.insertsCond,
-    buyFrom: item.buyFrom, origin: item.origin, note: item.note, collection: item.collection,
+    buyFrom: item.buyFrom, origin: item.origin, note: item.note, collection: item.collection, tag: item.tag,
   };
   Object.keys(fields).forEach(function (k) {
     if (!COL[k]) return; // sheet không có cột này

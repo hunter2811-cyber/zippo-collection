@@ -32,7 +32,7 @@
     owner: false,
     key: store.get(KEY_STORE) || '',
     q: '',
-    filters: { collection: new Set(), caseType: new Set(), finish: new Set(), codeYear: new Set(), yearPurchase: new Set() },
+    filters: { collection: new Set(), tag: new Set(), caseType: new Set(), finish: new Set(), codeYear: new Set(), yearPurchase: new Set() },
     open: new Set(['caseType']),
     decadesOpen: new Set(),
     more: new Set(), // nhóm lọc đang mở rộng "Xem thêm"
@@ -120,7 +120,20 @@
   }
 
   // Phải khớp API_VERSION trong apps-script/Code.gs
-  const API_VERSION = 3;
+  const API_VERSION = 4;
+
+  // Collection và Tag có thể có nhiều giá trị, viết cách nhau bằng dấu phẩy: "Nippon, Hope"
+  const MULTI = ['collection', 'tag'];
+  const splitList = (s) => {
+    const seen = new Set();
+    return String(s || '').split(/[,;]/).map((x) => x.trim()).filter((x) => {
+      const k = x.toLowerCase();
+      if (!x || seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  };
+  const valuesOf = (it, field) => (MULTI.includes(field) ? splitList(it[field]) : [it[field]]).filter((v) => v !== '' && v != null);
 
   function applyData(data, fresh) {
     if (fresh && data.owner) {
@@ -129,6 +142,7 @@
       }
     }
     state.items = data.items || [];
+    state.items.forEach((it) => { if (it.tag == null) it.tag = ''; });
     if (Array.isArray(data.files)) attachPhotos(state.items, data.files);
     state.lists = data.lists || state.lists;
     setOwner(!!data.owner);
@@ -151,11 +165,7 @@
   // ---------- Bộ lọc ----------
   function countBy(field) {
     const m = new Map();
-    state.items.forEach((it) => {
-      const v = it[field];
-      if (v === '' || v == null) return;
-      m.set(v, (m.get(v) || 0) + 1);
-    });
+    state.items.forEach((it) => valuesOf(it, field).forEach((v) => m.set(v, (m.get(v) || 0) + 1)));
     return m;
   }
 
@@ -164,9 +174,10 @@
     const m = new Map();
     state.items.forEach((it) => {
       if (!matches(it, field)) return;
-      const v = keyOf ? keyOf(it) : it[field];
-      if (v === '' || v == null) return;
-      m.set(v, (m.get(v) || 0) + 1);
+      (keyOf ? [keyOf(it)] : valuesOf(it, field)).forEach((v) => {
+        if (v === '' || v == null) return;
+        m.set(v, (m.get(v) || 0) + 1);
+      });
     });
     return m;
   }
@@ -210,6 +221,7 @@
       html.push(groupHtml(key, title, body));
     };
     valueGroup('collection', 'Collection');
+    valueGroup('tag', 'Tag');
     valueGroup('caseType', 'Case');
     valueGroup('finish', 'Finish');
 
@@ -336,13 +348,15 @@
   // skip: bỏ qua bộ lọc của nhóm này (dùng để đếm số lượng cho chính nhóm đó)
   function matches(it, skip) {
     const f = state.filters;
-    if (skip !== 'collection' && f.collection.size && !f.collection.has(it.collection)) return false;
+    const any = (field) => valuesOf(it, field).some((v) => f[field].has(v));
+    if (skip !== 'collection' && f.collection.size && !any('collection')) return false;
+    if (skip !== 'tag' && f.tag.size && !any('tag')) return false;
     if (skip !== 'caseType' && f.caseType.size && !f.caseType.has(it.caseType)) return false;
     if (skip !== 'finish' && f.finish.size && !f.finish.has(it.finish)) return false;
     if (skip !== 'codeYear' && f.codeYear.size && !f.codeYear.has(String(it.codeYear || 'none'))) return false;
     if (skip !== 'yearPurchase' && f.yearPurchase.size && !f.yearPurchase.has(String(it.yearPurchase))) return false;
     if (state.q) {
-      const hay = [it.no, it.name, it.sku, it.collection, it.caseType, it.finish, it.code, it.codeYear, it.note, it.buyFrom, it.origin].join(' ').toLowerCase();
+      const hay = [it.no, it.name, it.sku, it.collection, it.tag, it.caseType, it.finish, it.code, it.codeYear, it.note, it.buyFrom, it.origin].join(' ').toLowerCase();
       const words = state.q.toLowerCase().split(/\s+/).filter(Boolean);
       if (!words.every((w) => hay.includes(w) || hay.normalize('NFD').replace(/[̀-ͯ]/g, '').includes(w.normalize('NFD').replace(/[̀-ͯ]/g, '')))) return false;
     }
@@ -381,6 +395,7 @@
     const parts = [];
     const f = state.filters;
     if (f.collection.size) parts.push(Array.from(f.collection).join(', '));
+    if (f.tag.size) parts.push('Tag: ' + Array.from(f.tag).join(', '));
     if (f.caseType.size) parts.push('Case: ' + Array.from(f.caseType).join(', '));
     if (f.finish.size) parts.push(Array.from(f.finish).join(', '));
     $('#summary').innerHTML = '<strong>' + state.shown.length + '</strong> / ' + state.items.length + ' chiếc' + (parts.length ? ' · ' + esc(parts.join(' · ')) : '');
@@ -395,7 +410,7 @@
 
   function renderActiveChips() {
     const out = [];
-    const names = { collection: '', caseType: '', finish: '', codeYear: 'Code ', yearPurchase: 'Mua ' };
+    const names = { collection: '', tag: '#', caseType: '', finish: '', codeYear: 'Code ', yearPurchase: 'Mua ' };
     Object.keys(state.filters).forEach((g) => state.filters[g].forEach((v) => {
       out.push('<button type="button" class="chip is-on" data-chip-group="' + g + '" data-chip-value="' + esc(v) + '" aria-label="Bỏ lọc ' + esc(v) + '">' +
         esc(names[g] + (v === 'none' ? 'không rõ' : v)) + ' <span aria-hidden="true">×</span></button>');
@@ -449,7 +464,7 @@
     $('#dNo').textContent = '#' + it.no;
     $('#dTitle').textContent = it.name;
     $('#dFacts').innerHTML = factRows([
-      ['Code', it.code || '—', 'code'], ['Code Year', it.codeYear || ''], ['Case', it.caseType], ['Finish', it.finish], ['Collection', it.collection], ['SKU', it.sku],
+      ['Code', it.code || '—', 'code'], ['Code Year', it.codeYear || ''], ['Case', it.caseType], ['Finish', it.finish], ['Collection', splitList(it.collection).join(', ')], ['Tag', splitList(it.tag).join(', ')], ['SKU', it.sku],
     ]);
     if (state.owner) {
       $('#dPrivate').innerHTML = '<h3>' + ICON.lock + 'Riêng tư</h3><dl class="facts">' + factRows([
@@ -569,6 +584,44 @@
     return known;
   }
 
+  // Ô nhập nhiều giá trị: gõ rồi Enter hoặc dấu phẩy để thêm, bấm × để bỏ
+  function tokenInput(boxId, inputId) {
+    const box = $('#' + boxId);
+    const input = $('#' + inputId);
+    let vals = [];
+    const draw = () => {
+      $$('.tok', box).forEach((t) => t.remove());
+      vals.forEach((v, i) => {
+        const t = document.createElement('span');
+        t.className = 'tok';
+        t.innerHTML = esc(v) + '<button type="button" data-i="' + i + '" aria-label="Bỏ ' + esc(v) + '">×</button>';
+        box.insertBefore(t, input);
+      });
+    };
+    const add = (text) => {
+      splitList(text).forEach((v) => { if (!vals.some((x) => x.toLowerCase() === v.toLowerCase())) vals.push(v); });
+      input.value = '';
+      draw();
+    };
+    input.addEventListener('keydown', (e) => {
+      if ((e.key === 'Enter' || e.key === ',') && input.value.trim()) { e.preventDefault(); add(input.value); }
+      else if (e.key === 'Enter') e.preventDefault();
+      else if (e.key === 'Backspace' && !input.value && vals.length) { vals.pop(); draw(); }
+    });
+    input.addEventListener('change', () => { if (input.value.trim()) add(input.value); });
+    input.addEventListener('input', (e) => { if (e.inputType === 'insertReplacementText' || !e.inputType) add(input.value); });
+    input.addEventListener('blur', () => { if (input.value.trim()) add(input.value); });
+    box.addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-i]');
+      if (b) { vals.splice(Number(b.dataset.i), 1); draw(); } else input.focus();
+    });
+    return {
+      set(list) { vals = list.slice(); input.value = ''; draw(); },
+      get() { if (input.value.trim()) add(input.value); return vals.slice(); },
+    };
+  }
+  const tokens = { collection: tokenInput('tkCollection', 'fCollection'), tag: tokenInput('tkTag', 'fTag') };
+
   function uniq(field) {
     return Array.from(new Set(state.items.map((it) => it[field]).filter(Boolean))).sort();
   }
@@ -597,11 +650,13 @@
     fillSelect($('#fInsertsCond'), state.lists.conditions, v.insertsCond || (it ? '' : 'New'));
     $('#fBuyFrom').value = v.buyFrom || '';
     $('#fOrigin').value = v.origin || '';
-    $('#fCollection').value = v.collection || '';
+    tokens.collection.set(splitList(v.collection));
+    tokens.tag.set(splitList(v.tag));
     $('#fNote').value = v.note || '';
     $('#dlBuyFrom').innerHTML = uniq('buyFrom').map((o) => '<option value="' + esc(o) + '">').join('');
     $('#dlOrigin').innerHTML = uniq('origin').map((o) => '<option value="' + esc(o) + '">').join('');
-    $('#dlCollection').innerHTML = uniq('collection').map((o) => '<option value="' + esc(o) + '">').join('');
+    $('#dlCollection').innerHTML = Array.from(countBy('collection').keys()).sort().map((o) => '<option value="' + esc(o) + '">').join('');
+    $('#dlTag').innerHTML = Array.from(countBy('tag').keys()).sort().map((o) => '<option value="' + esc(o) + '">').join('');
     $('#fName').closest('.field').classList.remove('invalid');
     $('#eStatus').textContent = 'Lưu xong, dữ liệu được ghi thẳng vào sheet Zippo trên Google Drive của anh.';
     updateCodeYear();
@@ -721,7 +776,8 @@
       insertsCond: $('#fInsertsCond').value,
       buyFrom: $('#fBuyFrom').value.trim(),
       origin: $('#fOrigin').value.trim(),
-      collection: $('#fCollection').value.trim(),
+      collection: tokens.collection.get().join(', '),
+      tag: tokens.tag.get().join(', '),
       note: $('#fNote').value.trim(),
     };
   }
