@@ -443,14 +443,23 @@ function photoIndex_() {
   const kOf = {};
   folders.forEach(function (f) { kOf[f.id] = f.k; });
   const inFolders = [];
-  for (let i = 0; i < folders.length; i += 40) {
-    const q = '(' + folders.slice(i, i + 40).map(function (f) { return "'" + f.id + "' in parents"; }).join(' or ') + ') and trashed=false';
+  // Gom nhiều thư mục vào một lần hỏi, nhưng giữ đường link ngắn (Google giới hạn ~2.000 ký tự)
+  const batches = [];
+  let cur = [];
+  folders.forEach(function (f) {
+    const next = cur.concat(["'" + f.id + "' in parents"]);
+    if (cur.length && encodeURIComponent('(' + next.join(' or ') + ') and trashed=false').length > 1500) { batches.push(cur); cur = [next[next.length - 1]]; }
+    else cur = next;
+  });
+  if (cur.length) batches.push(cur);
+  batches.forEach(function (b) {
+    const q = '(' + b.join(' or ') + ') and trashed=false';
     driveList_(q, 'id,name,parents,mimeType').forEach(function (f) {
       if (f.mimeType === FOLDER_MIME || !IMAGE_RE.test(f.name)) return;
       const parent = (f.parents || []).filter(function (p) { return kOf[p] != null; })[0];
       if (parent) inFolders.push({ id: f.id, n: f.name.trim(), k: kOf[parent], f: parent });
     });
-  }
+  });
   const files = loose.map(function (f) { return { id: f.id, n: f.n }; })
     .concat(inFolders.map(function (f) { return { id: f.id, n: f.n, k: f.k }; }));
   const idx = { folders: folders, loose: loose, inFolders: inFolders, files: files };
