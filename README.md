@@ -3,7 +3,7 @@
 Web xem và quản lý bộ sưu tập Zippo, chạy trên máy tính và điện thoại, có icon riêng trên Android.
 
 - **Dữ liệu:** Google Sheet "My collection" của anh. Web đọc sheet **Data Zippo**; thêm/sửa thì ghi vào sheet **Zippo**.
-- **Ảnh:** trong thư mục **Anh Zippo** trên Google Drive, mỗi Zippo một thư mục con tên **"ID - Tên"**, ví dụ `125 - Armor Dragon`. Web chỉ nhìn số ID ở đầu; ảnh bên trong đặt tên tuỳ ý, ảnh đứng đầu theo tên là ảnh chính. Mỗi đêm máy tự đồng bộ: tạo thư mục còn thiếu, đổi tên thư mục cho khớp tên trong sheet, gom ảnh rời kiểu cũ (`12.jpg`, `12_2.jpg`) vào thư mục. Không bao giờ xoá ảnh.
+- **Ảnh:** trong thư mục **Anh Zippo** trên Google Drive, mỗi Zippo một thư mục con tên **"No. - Tên - ID"**, ví dụ `151 - Armor Dragon - ID 412`. Web chỉ nhìn số sau chữ "ID" ở cuối; ảnh bên trong đặt tên tuỳ ý, ảnh đứng đầu theo tên là ảnh chính. Mỗi đêm máy tự đồng bộ: tạo thư mục còn thiếu, đổi tên thư mục cho khớp No. và tên trong sheet (kể cả khi anh đánh lại No.), gom ảnh rời kiểu cũ (`12.jpg`, `12_2.jpg`) vào thư mục. Không bao giờ xoá ảnh.
 - **ID và No.:** ID là số cố định của từng chiếc, không bao giờ sửa hay dùng lại; ảnh đi theo ID. No. là số thứ tự, anh đánh lại hay sắp xếp sheet tuỳ ý, ảnh vẫn đúng chiếc. Khi sắp xếp sheet, nhớ chọn cả cột ID.
 - **Khách** chỉ thấy tên, SKU, Case, Finish, Collection, Code, Code Year và ảnh.
 - Web tìm cột theo **tiêu đề cột**, nên anh chèn thêm cột vào sheet vẫn được; chỉ cần giữ nguyên tên các tiêu đề cũ.
@@ -47,7 +47,7 @@ Web xem và quản lý bộ sưu tập Zippo, chạy trên máy tính và điệ
 - **Chia sẻ cho bạn bè:** gửi đường link web. Người khác chỉ xem được ở chế độ khách.
 - **Gửi link một chiếc cụ thể:** mở chiếc đó, rồi sao chép đường link trên trình duyệt (có dạng `…/#no=12`).
 - **Thêm Zippo:** bấm **Thêm Zippo**, điền thông tin, chọn ảnh từ máy ảnh, bấm Lưu. Ảnh được tự thu nhỏ và lưu vào thư mục Anh Zippo.
-- **Thêm ảnh trực tiếp trên Drive:** xem **ID ảnh** của chiếc đó (trong phần Riêng tư khi mở chi tiết, hoặc cột ID trong sheet). Ví dụ ID 125 thì chép ảnh vào thư mục `125 - …` trong **Anh Zippo** (ảnh chính đặt tên `1.jpg`). Web hiện ảnh trong vòng 2 phút.
+- **Thêm ảnh trực tiếp trên Drive:** xem **ID ảnh** của chiếc đó (trong phần Riêng tư khi mở chi tiết, hoặc cột ID trong sheet). Ví dụ ID 125 thì chép ảnh vào thư mục `… - ID 125` trong **Anh Zippo** (ảnh chính đặt tên `1.jpg`). Web hiện ảnh trong vòng 2 phút.
 - **Vẫn nhập trên Google Sheet như cũ được:** nhập thêm dòng vào sheet Zippo, web tự cập nhật lần mở sau.
 - **Sửa danh sách Case/Finish trong form thêm mới:** sửa tab **Danh mục** trong Google Sheet.
 - **Bộ lọc** Collection/Case/Finish/Code Year/Năm mua tự lấy theo dữ liệu thật trong sheet, nên khi anh chuẩn hoá tên Finish trong sheet thì bộ lọc tự gọn lại.

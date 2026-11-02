@@ -710,7 +710,7 @@
         '<button type="button" data-unqueue="' + i + '" aria-label="Bỏ ảnh này" title="Bỏ ảnh này">' + ICON.trash + '</button></div></div>'));
     $('#ePhotos').innerHTML = html.join('');
     const id = editing ? pid(editing) : 'ID';
-    $('#dropHint').textContent = 'Ảnh được lưu vào thư mục “' + id + ' - Tên Zippo” trong Anh Zippo khi bấm Lưu.' +
+    $('#dropHint').textContent = 'Ảnh được lưu vào thư mục “No. - Tên Zippo - ID ' + id + '” trong Anh Zippo khi bấm Lưu.' +
       (editing ? '' : ' (Zippo mới được cấp ID tự động.)');
   }
 
@@ -927,7 +927,7 @@
         panel('Chi tiêu theo năm', bars(ys.map(([y, e]) => [String(y), e[1]]), short), true) +
         panel('Mua tại', bars(byCount('buyFrom')), true) +
         panel('Xuất xứ', bars(byCount('origin')), true) +
-        panel('Thư mục ảnh', '<p class="note">Mỗi Zippo một thư mục “ID - Tên” trong Anh Zippo. Máy tự đồng bộ mỗi đêm; bấm nút dưới đây nếu anh vừa sửa tên trong sheet và muốn đồng bộ ngay.</p>' +
+        panel('Thư mục ảnh', '<p class="note">Mỗi Zippo một thư mục “No. - Tên - ID” trong Anh Zippo. Máy tự đồng bộ mỗi đêm; bấm nút dưới đây nếu anh vừa sửa tên hoặc đánh lại No. trong sheet và muốn đồng bộ ngay.</p>' +
           '<button type="button" class="btn btn-dark" id="syncFolders">Đồng bộ thư mục ảnh</button>', true);
     }
     $('#statsView').innerHTML = '<h1>Thống kê</h1><div class="kpis">' + kpi + '</div><div class="panels">' + html + '</div>';

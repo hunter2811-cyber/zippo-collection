@@ -307,7 +307,10 @@ function saveItem_(item) {
   });
   if (item.photosCount && COL.pic) sheet.getRange(row, COL.pic).setValue('x');
   ensureDataRow_(row);
-  if (isNew || 'name' in item) syncOneFolder_(Number(item.id), item.name);
+  if (isNew || 'name' in item || 'no' in item) {
+    const v = function (c) { return c ? sheet.getRange(row, c).getValue() : ''; };
+    syncOneFolder_(Number(item.id), { name: v(COL.name), no: v(COL.no) });
+  }
   SpreadsheetApp.flush();
   return readItems_(true).filter(function (it) { return it.id === Number(item.id); })[0] || { id: Number(item.id), no: Number(item.no) };
 }
@@ -366,16 +369,16 @@ function deleteItem_(pid) {
 
 // ---------- Ảnh ----------
 //
-// Mỗi Zippo một thư mục con trong "Anh Zippo", tên thư mục: "ID - Tên", ví dụ "125 - Armor Dragon".
-// Web chỉ nhìn SỐ ID ở đầu tên thư mục; phần tên phía sau để anh dễ tìm, sai lệch cũng không sao
-// (hàm dongBoThuMucAnh tự sửa lại cho khớp tên trong sheet).
+// Mỗi Zippo một thư mục con trong "Anh Zippo", tên thư mục: "No. - Tên - ID", ví dụ "151 - Armor Dragon - ID 412".
+// No. đứng đầu để anh tìm theo thứ tự mua. Web chỉ nhìn số sau chữ "ID" ở CUỐI tên thư mục; phần No. và tên
+// sai lệch cũng không sao (hàm dongBoThuMucAnh tự sửa lại cho khớp sheet, kể cả khi anh đánh lại No.).
 // Ảnh trong thư mục đặt tên tuỳ ý; ảnh đứng đầu theo thứ tự tên là ảnh chính (web đặt 1.jpg, 2.jpg…).
 // Ảnh rời kiểu cũ ngay trong "Anh Zippo" (12.jpg, 12_2.jpg) vẫn được nhận, và được gom vào thư mục khi đồng bộ.
 
 function folder_() { return DriveApp.getFolderById(PHOTO_FOLDER_ID); }
 
 const PHOTO_NAME = /^(\d+)\s*(?:[_\-\s]\s*(\d+)|\(\s*(\d+)\s*\))?\s*\.(jpe?g|png|webp|heic|gif)$/i;
-const FOLDER_ID_RE = /^\s*(\d+)(?!\d)/;
+const FOLDER_ID_RE = /\bID\s*(\d+)\s*$/i;
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const IMAGE_RE = /\.(jpe?g|png|webp|heic|gif)$/i;
 const naturalCmp_ = function (a, b) { return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' }); };
@@ -483,35 +486,38 @@ function clearPhotoCache_() {
   cache.removeAll(keys);
 }
 
-// Tên thư mục chuẩn: "ID - Tên" (bỏ các ký tự Drive/Windows không thích)
-function folderName_(pid, name) {
-  const clean = String(name || '').replace(/[\\/:*?"<>|\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
-  return clean ? pid + ' - ' + clean : String(pid);
+// Tên thư mục chuẩn: "No. - Tên - ID 412". No. thêm số 0 phía trước (001, 012…) để Drive xếp đúng thứ tự.
+// info = {name, no}. Bỏ các ký tự Drive/Windows không thích.
+function folderName_(pid, info) {
+  info = info || {};
+  const clean = String(info.name || '').replace(/[\\/:*?"<>|\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+  const no = Number(info.no) > 0 ? ('00' + Number(info.no)).slice(-Math.max(3, String(Number(info.no)).length)) : '';
+  return [no, clean, 'ID ' + pid].filter(String).join(' - ');
 }
 
-// { ID: Tên } đọc từ sheet Zippo
+// { ID: {name, no} } đọc từ sheet Zippo
 function itemNames_() {
   const sheet = ss_().getSheetByName(SHEET_INPUT);
   const L = layout_(sheet);
   const out = {};
-  noNames_(sheet, L).forEach(function (r) {
+  const nos = L.col.id ? noNames_(sheet, L, L.col.no) : null;
+  noNames_(sheet, L).forEach(function (r, i) {
     const k = Number(r[0]);
     const name = String(r[1]).trim();
-    if (k > 0 && name && out[k] == null) out[k] = name;
+    if (k > 0 && name && out[k] == null) out[k] = { name: name, no: nos ? nos[i][0] : k };
   });
   return out;
 }
 
 // Thư mục ảnh của một chiếc: có rồi thì dùng (và gom ảnh rời kiểu cũ vào), chưa có thì tạo
-function photoFolderFor_(pid, name) {
+function photoFolderFor_(pid) {
   const idx = photoIndex_();
   const found = idx.folders.filter(function (f) { return f.k === Number(pid); })[0];
   let folder;
   if (found) {
     folder = DriveApp.getFolderById(found.id);
   } else {
-    if (name == null) name = itemNames_()[Number(pid)] || '';
-    folder = folder_().createFolder(folderName_(pid, name));
+    folder = folder_().createFolder(folderName_(pid, itemNames_()[Number(pid)]));
   }
   const loose = idx.loose.filter(function (f) { return f.k === Number(pid); });
   if (loose.length) moveLoose_(loose, folder);
@@ -586,11 +592,11 @@ function setMainPhoto_(pid, id) {
   return (photoMap_()[Number(pid)] || []).map(function (f) { return f.id; });
 }
 
-// Sau khi lưu một chiếc: đổi tên thư mục nếu tên Zippo đã đổi (chưa có thư mục thì tạo)
-function syncOneFolder_(pid, name) {
+// Sau khi lưu một chiếc: đổi tên thư mục nếu tên hoặc No. đã đổi (chưa có thư mục thì tạo)
+function syncOneFolder_(pid, info) {
   try {
     const found = photoIndex_().folders.filter(function (f) { return f.k === Number(pid); })[0];
-    const want = folderName_(pid, name);
+    const want = folderName_(pid, info);
     if (!found) { folder_().createFolder(want); clearPhotoCache_(); return; }
     if (found.name !== want) { DriveApp.getFolderById(found.id).setName(want); clearPhotoCache_(); }
   } catch (e) { /* lỗi thư mục ảnh không được làm hỏng việc lưu */ }
@@ -599,8 +605,8 @@ function syncOneFolder_(pid, name) {
 /**
  * ĐỒNG BỘ THƯ MỤC ẢNH — chạy tự động mỗi đêm, hoặc anh bấm Run / bấm nút trên web.
  * - Chiếc nào chưa có ID (anh chèn tay vào sheet, để trống ô ID) thì được cấp ID mới.
- * - Mỗi Zippo trong sheet có một thư mục "ID - Tên" (chưa có thì tạo).
- * - Tên thư mục lệch với tên trong sheet thì đổi lại cho khớp.
+ * - Mỗi Zippo trong sheet có một thư mục "No. - Tên - ID" (chưa có thì tạo).
+ * - Anh đánh lại No. hoặc sửa tên trong sheet thì tên thư mục được đổi lại cho khớp.
  * - Ảnh rời kiểu cũ (12.jpg, 12_2.jpg) được chuyển vào thư mục, đổi tên thành 1.jpg, 2.jpg.
  * Không bao giờ xoá ảnh hay thư mục. Chạy dở vì hết giờ thì lần sau chạy tiếp.
  */
