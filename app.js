@@ -112,13 +112,22 @@
   const PHOTO_NAME = /^(\d+)\s*(?:[_\-\s]\s*(\d+)|\(\s*(\d+)\s*\))?\s*\.(jpe?g|png|webp|heic|gif)$/i;
   function attachPhotos(items, files) {
     const map = {};
+    // Ảnh rời kiểu cũ (12.jpg, 12_2.jpg) đứng trước, rồi tới ảnh trong thư mục "ID - Tên" xếp theo tên
+    const natural = (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
     files.forEach((f) => {
-      const m = String(f.n).trim().match(PHOTO_NAME);
+      const name = String(f.n).trim();
+      if (f.k != null) {
+        (map[f.k] = map[f.k] || []).push([1, name, f.id]);
+        return;
+      }
+      const m = name.match(PHOTO_NAME);
       if (!m) return;
       const idx = m[2] ? Number(m[2]) : m[3] ? Number(m[3]) : 0;
-      (map[Number(m[1])] = map[Number(m[1])] || []).push([idx, f.id]);
+      (map[Number(m[1])] = map[Number(m[1])] || []).push([0, idx, f.id]);
     });
-    items.forEach((it) => { it.photos = (map[pid(it)] || []).sort((a, b) => a[0] - b[0]).map((e) => e[1]); });
+    items.forEach((it) => {
+      it.photos = (map[pid(it)] || []).sort((a, b) => a[0] - b[0] || (a[0] ? natural(a[1], b[1]) : a[1] - b[1])).map((e) => e[2]);
+    });
   }
 
   // Phải khớp API_VERSION trong apps-script/Code.gs
@@ -701,7 +710,7 @@
         '<button type="button" data-unqueue="' + i + '" aria-label="Bỏ ảnh này" title="Bỏ ảnh này">' + ICON.trash + '</button></div></div>'));
     $('#ePhotos').innerHTML = html.join('');
     const id = editing ? pid(editing) : 'ID';
-    $('#dropHint').textContent = 'Ảnh được lưu vào thư mục Anh Zippo theo ID ảnh: ' + id + '.jpg, ' + id + '_2.jpg… khi bấm Lưu.' +
+    $('#dropHint').textContent = 'Ảnh được lưu vào thư mục “' + id + ' - Tên Zippo” trong Anh Zippo khi bấm Lưu.' +
       (editing ? '' : ' (Zippo mới được cấp ID tự động.)');
   }
 
@@ -917,9 +926,26 @@
       html += panel('Số chiếc mua theo năm', bars(ys.map(([y, e]) => [String(y), e[0]])), true) +
         panel('Chi tiêu theo năm', bars(ys.map(([y, e]) => [String(y), e[1]]), short), true) +
         panel('Mua tại', bars(byCount('buyFrom')), true) +
-        panel('Xuất xứ', bars(byCount('origin')), true);
+        panel('Xuất xứ', bars(byCount('origin')), true) +
+        panel('Thư mục ảnh', '<p class="note">Mỗi Zippo một thư mục “ID - Tên” trong Anh Zippo. Máy tự đồng bộ mỗi đêm; bấm nút dưới đây nếu anh vừa sửa tên trong sheet và muốn đồng bộ ngay.</p>' +
+          '<button type="button" class="btn btn-dark" id="syncFolders">Đồng bộ thư mục ảnh</button>', true);
     }
     $('#statsView').innerHTML = '<h1>Thống kê</h1><div class="kpis">' + kpi + '</div><div class="panels">' + html + '</div>';
+    const sync = $('#syncFolders');
+    if (sync) sync.addEventListener('click', async () => {
+      sync.disabled = true;
+      sync.textContent = 'Đang đồng bộ… (có thể mất vài phút)';
+      try {
+        const res = await apiPost({ action: 'syncFolders' });
+        toast(res.result.message);
+        load();
+      } catch (err) {
+        toast('Chưa đồng bộ được: ' + err.message);
+      } finally {
+        sync.disabled = false;
+        sync.textContent = 'Đồng bộ thư mục ảnh';
+      }
+    });
   }
 
   // ---------- Điều hướng ----------

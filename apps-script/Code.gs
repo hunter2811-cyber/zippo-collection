@@ -104,6 +104,7 @@ function doPost(e) {
         case 'uploadPhoto': return { ok: true, photo: uploadPhoto_(pid_(body), body.data, body.mime) };
         case 'deletePhoto': return { ok: true, photos: deletePhoto_(pid_(body), body.id) };
         case 'setMainPhoto': return { ok: true, photos: setMainPhoto_(pid_(body), body.id) };
+        case 'syncFolders': return { ok: true, result: dongBoThuMucAnh() };
         default: throw new Error('Không rõ thao tác: ' + body.action);
       }
     } finally {
@@ -306,6 +307,7 @@ function saveItem_(item) {
   });
   if (item.photosCount && COL.pic) sheet.getRange(row, COL.pic).setValue('x');
   ensureDataRow_(row);
+  if (isNew || 'name' in item) syncOneFolder_(Number(item.id), item.name);
   SpreadsheetApp.flush();
   return readItems_(true).filter(function (it) { return it.id === Number(item.id); })[0] || { id: Number(item.id), no: Number(item.no) };
 }
@@ -363,55 +365,187 @@ function deleteItem_(pid) {
 }
 
 // ---------- Ảnh ----------
+//
+// Mỗi Zippo một thư mục con trong "Anh Zippo", tên thư mục: "ID - Tên", ví dụ "125 - Armor Dragon".
+// Web chỉ nhìn SỐ ID ở đầu tên thư mục; phần tên phía sau để anh dễ tìm, sai lệch cũng không sao
+// (hàm dongBoThuMucAnh tự sửa lại cho khớp tên trong sheet).
+// Ảnh trong thư mục đặt tên tuỳ ý; ảnh đứng đầu theo thứ tự tên là ảnh chính (web đặt 1.jpg, 2.jpg…).
+// Ảnh rời kiểu cũ ngay trong "Anh Zippo" (12.jpg, 12_2.jpg) vẫn được nhận, và được gom vào thư mục khi đồng bộ.
 
 function folder_() { return DriveApp.getFolderById(PHOTO_FOLDER_ID); }
 
-// Quy ước đặt tên ảnh THEO ID (không theo No.): 12.jpg là ảnh chính, 12_2.jpg, 12_3.jpg… là ảnh phụ.
-// (Vẫn nhận thêm "12 (1).jpg", "12-2.jpg" cho chắc. Trang web cũng đọc tên ảnh theo quy tắc này.)
 const PHOTO_NAME = /^(\d+)\s*(?:[_\-\s]\s*(\d+)|\(\s*(\d+)\s*\))?\s*\.(jpe?g|png|webp|heic|gif)$/i;
+const FOLDER_ID_RE = /^\s*(\d+)(?!\d)/;
+const FOLDER_MIME = 'application/vnd.google-apps.folder';
+const IMAGE_RE = /\.(jpe?g|png|webp|heic|gif)$/i;
+const naturalCmp_ = function (a, b) { return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' }); };
 
-// Danh sách mọi file ảnh trong thư mục: [{n: tên, id}]
-function photoFiles_() {
-  const cache = CacheService.getScriptCache();
-  const hit = cache.get('files');
-  if (hit) return JSON.parse(hit);
-  const files = [];
-  const it = folder_().getFiles();
-  while (it.hasNext()) {
-    const f = it.next();
-    if (f.isTrashed()) continue;
-    files.push({ n: f.getName().trim(), id: f.getId() });
-  }
-  const json = JSON.stringify(files);
-  if (json.length < 90000) cache.put('files', json, 120);
-  return files;
+// Gọi Drive API để liệt kê nhanh (nhanh hơn duyệt từng thư mục bằng DriveApp rất nhiều)
+function driveList_(q, fields) {
+  const out = [];
+  let token = '';
+  do {
+    const url = 'https://www.googleapis.com/drive/v3/files?pageSize=1000&q=' + encodeURIComponent(q) +
+      '&fields=' + encodeURIComponent('nextPageToken,files(' + fields + ')') + (token ? '&pageToken=' + token : '');
+    const res = UrlFetchApp.fetch(url, { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+    if (res.getResponseCode() !== 200) throw new Error('Drive: ' + res.getContentText().slice(0, 200));
+    const body = JSON.parse(res.getContentText());
+    Array.prototype.push.apply(out, body.files || []);
+    token = body.nextPageToken || '';
+  } while (token);
+  return out;
 }
 
-// { ID: [{id, name, idx}] }
-function photoMap_() {
-  const map = {};
-  photoFiles_().forEach(function (f) {
-    const m = f.n.match(PHOTO_NAME);
-    if (!m) return;
-    const no = Number(m[1]);
-    const idx = m[2] ? Number(m[2]) : m[3] ? Number(m[3]) : 0;
-    (map[no] = map[no] || []).push({ id: f.id, name: f.n, idx: idx });
+// Bộ nhớ đệm cho danh sách ảnh (chia nhỏ vì mỗi ô nhớ chỉ chứa ~100KB)
+function cacheGetBig_(key) {
+  const cache = CacheService.getScriptCache();
+  const n = Number(cache.get(key + '_n') || 0);
+  if (!n) return null;
+  const keys = [];
+  for (let i = 0; i < n; i++) keys.push(key + '_' + i);
+  const parts = cache.getAll(keys);
+  let json = '';
+  for (let i = 0; i < n; i++) { if (parts[key + '_' + i] == null) return null; json += parts[key + '_' + i]; }
+  return JSON.parse(json);
+}
+function cachePutBig_(key, value, ttl) {
+  const json = JSON.stringify(value);
+  const obj = {};
+  let n = 0;
+  for (let i = 0; i < json.length; i += 90000) obj[key + '_' + n++] = json.slice(i, i + 90000);
+  obj[key + '_n'] = String(n);
+  if (n <= 50) CacheService.getScriptCache().putAll(obj, ttl);
+}
+
+/**
+ * Toàn bộ ảnh: { folders: [{id, name, k}], loose: [{id, n, k, idx}], files: [{id, n, k}] }
+ * k = ID của chiếc Zippo. "files" là danh sách gửi cho trang web.
+ */
+function photoIndex_() {
+  const hit = cacheGetBig_('pidx');
+  if (hit) return hit;
+  const root = PHOTO_FOLDER_ID;
+  const children = driveList_("'" + root + "' in parents and trashed=false", 'id,name,mimeType');
+  const folders = [];
+  const loose = [];
+  children.forEach(function (f) {
+    if (f.mimeType === FOLDER_MIME) {
+      const m = f.name.match(FOLDER_ID_RE);
+      if (m) folders.push({ id: f.id, name: f.name, k: Number(m[1]) });
+      return;
+    }
+    const m = f.name.trim().match(PHOTO_NAME);
+    if (m) loose.push({ id: f.id, n: f.name.trim(), k: Number(m[1]), idx: m[2] ? Number(m[2]) : m[3] ? Number(m[3]) : 0 });
   });
-  Object.keys(map).forEach(function (k) { map[k].sort(function (a, b) { return a.idx - b.idx; }); });
+  const kOf = {};
+  folders.forEach(function (f) { kOf[f.id] = f.k; });
+  const inFolders = [];
+  for (let i = 0; i < folders.length; i += 40) {
+    const q = '(' + folders.slice(i, i + 40).map(function (f) { return "'" + f.id + "' in parents"; }).join(' or ') + ') and trashed=false';
+    driveList_(q, 'id,name,parents,mimeType').forEach(function (f) {
+      if (f.mimeType === FOLDER_MIME || !IMAGE_RE.test(f.name)) return;
+      const parent = (f.parents || []).filter(function (p) { return kOf[p] != null; })[0];
+      if (parent) inFolders.push({ id: f.id, n: f.name.trim(), k: kOf[parent], f: parent });
+    });
+  }
+  const files = loose.map(function (f) { return { id: f.id, n: f.n }; })
+    .concat(inFolders.map(function (f) { return { id: f.id, n: f.n, k: f.k }; }));
+  const idx = { folders: folders, loose: loose, inFolders: inFolders, files: files };
+  cachePutBig_('pidx', idx, 300);
+  return idx;
+}
+
+// Danh sách gửi cho trang web: [{n: tên ảnh, id, k: ID chiếc Zippo nếu ảnh nằm trong thư mục}]
+function photoFiles_() { return photoIndex_().files; }
+
+// { ID: [{id, name}] } — ảnh rời kiểu cũ trước, rồi ảnh trong thư mục theo thứ tự tên
+function photoMap_() {
+  const idx = photoIndex_();
+  const map = {};
+  idx.loose.slice().sort(function (a, b) { return a.idx - b.idx; }).forEach(function (f) {
+    (map[f.k] = map[f.k] || []).push({ id: f.id, name: f.n, folder: null });
+  });
+  const groups = {};
+  idx.inFolders.forEach(function (f) { (groups[f.k] = groups[f.k] || []).push(f); });
+  Object.keys(groups).forEach(function (k) {
+    groups[k].sort(function (a, b) { return naturalCmp_(a.n, b.n); }).forEach(function (f) {
+      (map[k] = map[k] || []).push({ id: f.id, name: f.n, folder: f.f });
+    });
+  });
   return map;
 }
 
-function clearPhotoCache_() { CacheService.getScriptCache().removeAll(['files', 'photos']); }
+function clearPhotoCache_() {
+  const cache = CacheService.getScriptCache();
+  const n = Number(cache.get('pidx_n') || 0);
+  const keys = ['pidx_n', 'files', 'photos'];
+  for (let i = 0; i < n; i++) keys.push('pidx_' + i);
+  cache.removeAll(keys);
+}
+
+// Tên thư mục chuẩn: "ID - Tên" (bỏ các ký tự Drive/Windows không thích)
+function folderName_(pid, name) {
+  const clean = String(name || '').replace(/[\\/:*?"<>|\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+  return clean ? pid + ' - ' + clean : String(pid);
+}
+
+// { ID: Tên } đọc từ sheet Zippo
+function itemNames_() {
+  const sheet = ss_().getSheetByName(SHEET_INPUT);
+  const L = layout_(sheet);
+  const out = {};
+  noNames_(sheet, L).forEach(function (r) {
+    const k = Number(r[0]);
+    const name = String(r[1]).trim();
+    if (k > 0 && name && out[k] == null) out[k] = name;
+  });
+  return out;
+}
+
+// Thư mục ảnh của một chiếc: có rồi thì dùng (và gom ảnh rời kiểu cũ vào), chưa có thì tạo
+function photoFolderFor_(pid, name) {
+  const idx = photoIndex_();
+  const found = idx.folders.filter(function (f) { return f.k === Number(pid); })[0];
+  let folder;
+  if (found) {
+    folder = DriveApp.getFolderById(found.id);
+  } else {
+    if (name == null) name = itemNames_()[Number(pid)] || '';
+    folder = folder_().createFolder(folderName_(pid, name));
+  }
+  const loose = idx.loose.filter(function (f) { return f.k === Number(pid); });
+  if (loose.length) moveLoose_(loose, folder);
+  if (!found || loose.length) clearPhotoCache_();
+  return folder;
+}
+
+// 12.jpg → 1.jpg, 12_2.jpg → 2.jpg… rồi chuyển vào thư mục của chiếc đó
+function moveLoose_(loose, folder) {
+  const taken = {};
+  const it = folder.getFiles();
+  while (it.hasNext()) taken[it.next().getName().toLowerCase()] = true;
+  loose.slice().sort(function (a, b) { return a.idx - b.idx; }).forEach(function (f) {
+    const ext = (f.n.match(/\.[^.]+$/) || ['.jpg'])[0].toLowerCase();
+    let n = Math.max(1, f.idx);
+    while (taken[(n + ext)]) n++;
+    taken[n + ext] = true;
+    const file = DriveApp.getFileById(f.id);
+    file.setName(n + ext);
+    file.moveTo(folder);
+  });
+}
 
 function uploadPhoto_(pid, base64, mime) {
   if (!pid || !base64) throw new Error('Thiếu ảnh.');
   clearPhotoCache_();
-  const list = photoMap_()[Number(pid)] || [];
-  // Ảnh đầu tiên: 12.jpg, các ảnh sau: 12_2.jpg, 12_3.jpg…
-  const nextIdx = list.length ? Math.max(1, list.reduce(function (m, f) { return Math.max(m, f.idx); }, 0)) + 1 : 1;
-  const name = nextIdx === 1 ? pid + '.jpg' : pid + '_' + nextIdx + '.jpg';
+  const folder = photoFolderFor_(pid);
+  // Đặt tên 1.jpg, 2.jpg… nối tiếp số lớn nhất đang có trong thư mục
+  let max = 0;
+  const it = folder.getFiles();
+  while (it.hasNext()) { const m = it.next().getName().match(/^(\d+)/); if (m) max = Math.max(max, Number(m[1])); }
+  const name = (max + 1) + '.jpg';
   const blob = Utilities.newBlob(Utilities.base64Decode(base64), mime || 'image/jpeg', name);
-  const file = folder_().createFile(blob);
+  const file = folder.createFile(blob);
   markPic_(pid, true);
   clearPhotoCache_();
   return { id: file.getId(), name: name };
@@ -431,15 +565,14 @@ function deletePhoto_(pid, id) {
   DriveApp.getFileById(id).setTrashed(true);
   clearPhotoCache_();
   const left = photoMap_()[Number(pid)] || [];
-  if (!left.length) {
-    markPic_(pid, false);
-  }
+  if (!left.length) markPic_(pid, false);
   return left.map(function (f) { return f.id; });
 }
 
-// Đổi tên để ảnh được chọn thành 12.jpg (ảnh chính)
+// Đổi tên để ảnh được chọn đứng đầu thư mục (ảnh chính)
 function setMainPhoto_(pid, id) {
   clearPhotoCache_();
+  photoFolderFor_(pid); // gom ảnh rời kiểu cũ vào thư mục trước, để mọi ảnh cùng một chỗ
   const list = photoMap_()[Number(pid)] || [];
   const target = list.filter(function (f) { return f.id === id; })[0];
   const main = list[0];
@@ -453,6 +586,58 @@ function setMainPhoto_(pid, id) {
   return (photoMap_()[Number(pid)] || []).map(function (f) { return f.id; });
 }
 
+// Sau khi lưu một chiếc: đổi tên thư mục nếu tên Zippo đã đổi (chưa có thư mục thì tạo)
+function syncOneFolder_(pid, name) {
+  try {
+    const found = photoIndex_().folders.filter(function (f) { return f.k === Number(pid); })[0];
+    const want = folderName_(pid, name);
+    if (!found) { folder_().createFolder(want); clearPhotoCache_(); return; }
+    if (found.name !== want) { DriveApp.getFolderById(found.id).setName(want); clearPhotoCache_(); }
+  } catch (e) { /* lỗi thư mục ảnh không được làm hỏng việc lưu */ }
+}
+
+/**
+ * ĐỒNG BỘ THƯ MỤC ẢNH — chạy tự động mỗi đêm, hoặc anh bấm Run / bấm nút trên web.
+ * - Mỗi Zippo trong sheet có một thư mục "ID - Tên" (chưa có thì tạo).
+ * - Tên thư mục lệch với tên trong sheet thì đổi lại cho khớp.
+ * - Ảnh rời kiểu cũ (12.jpg, 12_2.jpg) được chuyển vào thư mục, đổi tên thành 1.jpg, 2.jpg.
+ * Không bao giờ xoá ảnh hay thư mục. Chạy dở vì hết giờ thì lần sau chạy tiếp.
+ */
+function dongBoThuMucAnh() {
+  const start = Date.now();
+  const names = itemNames_();
+  clearPhotoCache_();
+  const idx = photoIndex_();
+  const byK = {};
+  idx.folders.forEach(function (f) { if (!byK[f.k]) byK[f.k] = f; });
+  const looseByK = {};
+  idx.loose.forEach(function (f) { (looseByK[f.k] = looseByK[f.k] || []).push(f); });
+  const done = { created: 0, renamed: 0, moved: 0, left: 0 };
+  Object.keys(names).forEach(function (k) {
+    if (Date.now() - start > 4.5 * 60 * 1000) { done.left++; return; }
+    const want = folderName_(k, names[k]);
+    const f = byK[k];
+    let folder;
+    if (!f) { folder = folder_().createFolder(want); done.created++; }
+    else if (f.name !== want) { folder = DriveApp.getFolderById(f.id); folder.setName(want); done.renamed++; }
+    if (looseByK[k]) {
+      moveLoose_(looseByK[k], folder || DriveApp.getFolderById(f.id));
+      done.moved += looseByK[k].length;
+    }
+  });
+  clearPhotoCache_();
+  const msg = 'Thư mục ảnh: tạo mới ' + done.created + ', đổi tên ' + done.renamed + ', gom ' + done.moved + ' ảnh rời vào thư mục' +
+    (done.left ? '. Còn ' + done.left + ' chiếc chưa làm kịp, anh chạy lại lần nữa nhé.' : '. Xong.');
+  Logger.log(msg);
+  return Object.assign(done, { message: msg });
+}
+
+// Hẹn giờ chạy dongBoThuMucAnh mỗi đêm (khoảng 2–3 giờ sáng)
+function ensureNightlyTrigger_() {
+  const has = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'dongBoThuMucAnh'; });
+  if (!has) ScriptApp.newTrigger('dongBoThuMucAnh').timeBased().everyDays(1).atHour(2).create();
+}
+
 // ---------- Chạy một lần khi cài đặt ----------
 
 /** Bấm Run hàm này một lần: tạo sheet "Danh mục" và cho phép xem ảnh qua link. */
@@ -461,7 +646,8 @@ function setup() {
   listsSheet_();
   ensureIdColumn_();
   folder_().setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  clearPhotoCache_();
+  ensureNightlyTrigger_();
+  dongBoThuMucAnh();
   Logger.log('Xong. Đã lưu mật khẩu. Số Zippo đọc được: ' + readItems_(true).length +
     ', số ảnh: ' + Object.keys(photoMap_()).length + ' chiếc có ảnh.');
 }
