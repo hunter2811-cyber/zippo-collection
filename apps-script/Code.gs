@@ -598,6 +598,7 @@ function syncOneFolder_(pid, name) {
 
 /**
  * ĐỒNG BỘ THƯ MỤC ẢNH — chạy tự động mỗi đêm, hoặc anh bấm Run / bấm nút trên web.
+ * - Chiếc nào chưa có ID (anh chèn tay vào sheet, để trống ô ID) thì được cấp ID mới.
  * - Mỗi Zippo trong sheet có một thư mục "ID - Tên" (chưa có thì tạo).
  * - Tên thư mục lệch với tên trong sheet thì đổi lại cho khớp.
  * - Ảnh rời kiểu cũ (12.jpg, 12_2.jpg) được chuyển vào thư mục, đổi tên thành 1.jpg, 2.jpg.
@@ -605,6 +606,7 @@ function syncOneFolder_(pid, name) {
  */
 function dongBoThuMucAnh() {
   const start = Date.now();
+  fillMissingIds_();
   const names = itemNames_();
   clearPhotoCache_();
   const idx = photoIndex_();
@@ -630,6 +632,19 @@ function dongBoThuMucAnh() {
     (done.left ? '. Còn ' + done.left + ' chiếc chưa làm kịp, anh chạy lại lần nữa nhé.' : '. Xong.');
   Logger.log(msg);
   return Object.assign(done, { message: msg });
+}
+
+// Chiếc nào anh chèn tay vào sheet mà để trống ô ID thì cấp ID mới (số lớn nhất + 1)
+function fillMissingIds_() {
+  const sheet = ss_().getSheetByName(SHEET_INPUT);
+  const L = layout_(sheet);
+  if (!L.col.id) return;
+  const rows = noNames_(sheet, L);
+  let max = 0;
+  rows.forEach(function (r) { if (Number(r[0]) > max) max = Number(r[0]); });
+  rows.forEach(function (r, i) {
+    if (String(r[1]).trim() && !(Number(r[0]) > 0)) sheet.getRange(FIRST_ROW + i, L.col.id).setValue(++max);
+  });
 }
 
 // Hẹn giờ chạy dongBoThuMucAnh mỗi đêm (khoảng 2–3 giờ sáng)
