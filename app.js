@@ -927,7 +927,7 @@
         panel('Chi tiêu theo năm', bars(ys.map(([y, e]) => [String(y), e[1]]), short), true) +
         panel('Mua tại', bars(byCount('buyFrom')), true) +
         panel('Xuất xứ', bars(byCount('origin')), true) +
-        panel('Thư mục ảnh', '<p class="note">Mỗi Zippo một thư mục “No. - Tên - ID” trong Anh Zippo. Máy tự đồng bộ mỗi đêm; bấm nút dưới đây nếu anh vừa sửa tên hoặc đánh lại No. trong sheet và muốn đồng bộ ngay.</p>' +
+        panel('Thư mục ảnh', '<p class="note">Mỗi Zippo một thư mục “No. - Tên - ID” trong Anh Zippo. Máy tự đồng bộ mỗi giờ; bấm nút dưới đây nếu anh vừa sửa tên hoặc đánh lại No. trong sheet và muốn đồng bộ ngay.</p>' +
           '<button type="button" class="btn btn-dark" id="syncFolders">Đồng bộ thư mục ảnh</button>', true);
     }
     $('#statsView').innerHTML = '<h1>Thống kê</h1><div class="kpis">' + kpi + '</div><div class="panels">' + html + '</div>';

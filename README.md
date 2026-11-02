@@ -3,7 +3,7 @@
 Web xem và quản lý bộ sưu tập Zippo, chạy trên máy tính và điện thoại, có icon riêng trên Android.
 
 - **Dữ liệu:** Google Sheet "My collection" của anh. Web đọc sheet **Data Zippo**; thêm/sửa thì ghi vào sheet **Zippo**.
-- **Ảnh:** trong thư mục **Anh Zippo** trên Google Drive, mỗi Zippo một thư mục con tên **"No. - Tên - ID"**, ví dụ `151 - Armor Dragon - ID 412`. Web chỉ nhìn số sau chữ "ID" ở cuối; ảnh bên trong đặt tên tuỳ ý, ảnh đứng đầu theo tên là ảnh chính. Mỗi đêm máy tự đồng bộ: tạo thư mục còn thiếu, đổi tên thư mục cho khớp No. và tên trong sheet (kể cả khi anh đánh lại No.), gom ảnh rời kiểu cũ (`12.jpg`, `12_2.jpg`) vào thư mục. Không bao giờ xoá ảnh.
+- **Ảnh:** trong thư mục **Anh Zippo** trên Google Drive, mỗi Zippo một thư mục con tên **"No. - Tên - ID"**, ví dụ `151 - Armor Dragon - ID 412`. Web chỉ nhìn số sau chữ "ID" ở cuối; ảnh bên trong đặt tên tuỳ ý, ảnh đứng đầu theo tên là ảnh chính. Mỗi giờ máy tự đồng bộ: tạo thư mục còn thiếu, đổi tên thư mục cho khớp No. và tên trong sheet (kể cả khi anh đánh lại No.), gom ảnh rời kiểu cũ (`12.jpg`, `12_2.jpg`) vào thư mục. Không bao giờ xoá ảnh.
 - **ID và No.:** ID là số cố định của từng chiếc, không bao giờ sửa hay dùng lại; ảnh đi theo ID. No. là số thứ tự, anh đánh lại hay sắp xếp sheet tuỳ ý, ảnh vẫn đúng chiếc. Khi sắp xếp sheet, nhớ chọn cả cột ID.
 - **Khách** chỉ thấy tên, SKU, Case, Finish, Collection, Code, Code Year và ảnh.
 - Web tìm cột theo **tiêu đề cột**, nên anh chèn thêm cột vào sheet vẫn được; chỉ cần giữ nguyên tên các tiêu đề cũ.

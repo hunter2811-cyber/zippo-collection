@@ -603,7 +603,7 @@ function syncOneFolder_(pid, info) {
 }
 
 /**
- * ĐỒNG BỘ THƯ MỤC ẢNH — chạy tự động mỗi đêm, hoặc anh bấm Run / bấm nút trên web.
+ * ĐỒNG BỘ THƯ MỤC ẢNH — chạy tự động mỗi giờ, hoặc anh bấm Run / bấm nút trên web.
  * - Chiếc nào chưa có ID (anh chèn tay vào sheet, để trống ô ID) thì được cấp ID mới.
  * - Mỗi Zippo trong sheet có một thư mục "No. - Tên - ID" (chưa có thì tạo).
  * - Anh đánh lại No. hoặc sửa tên trong sheet thì tên thư mục được đổi lại cho khớp.
@@ -653,10 +653,12 @@ function fillMissingIds_() {
   });
 }
 
-// Hẹn giờ chạy dongBoThuMucAnh mỗi đêm (khoảng 2–3 giờ sáng)
+// Hẹn giờ chạy dongBoThuMucAnh mỗi giờ (chỉ đổi tên những thư mục bị lệch nên chạy rất nhanh)
 function ensureNightlyTrigger_() {
-  const has = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'dongBoThuMucAnh'; });
-  if (!has) ScriptApp.newTrigger('dongBoThuMucAnh').timeBased().everyDays(1).atHour(2).create();
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'dongBoThuMucAnh') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('dongBoThuMucAnh').timeBased().everyHours(1).create();
 }
 
 // ---------- Chạy một lần khi cài đặt ----------
