@@ -14,7 +14,7 @@
 const OWNER_PASSWORD = '';
 
 // Số phiên bản: trang web so với số này để báo khi Apps Script chưa được cập nhật
-const API_VERSION = 4;
+const API_VERSION = 5;
 
 const SPREADSHEET_ID = '1OjKbmFyFQUGcXwG6HKYbfwo7Hl2eYJAqqQHYpZ9Xkag';
 const PHOTO_FOLDER_ID = '11FN4LKbkDKuGYvTdlA47jtNa52Nkk6-b';
@@ -32,13 +32,13 @@ const DEFAULT_CONDITIONS = ['New', 'Used'];
 // Các cột được tìm theo TIÊU ĐỀ (dòng 1–2 của sheet Zippo, dòng 1 của Data Zippo), nên anh chèn
 // thêm cột mới vào sheet thì web vẫn chạy đúng. [tên trường, dòng tiêu đề, chữ trong tiêu đề]
 const INPUT_HEADERS = [
-  ['no', 1, 'No.'], ['name', 1, 'Name'], ['sku', 1, 'SKU'], ['caseType', 1, 'Case'], ['finish', 1, 'Finish'],
+  ['no', 1, 'No.'], ['id', 1, 'ID'], ['name', 1, 'Name'], ['sku', 1, 'SKU'], ['caseType', 1, 'Case'], ['finish', 1, 'Finish'],
   ['left', 2, 'Left'], ['right', 2, 'Right'], ['qlt', 2, 'QLT'], ['price', 2, 'Price'], ['date', 2, 'Date'],
   ['caseCond', 2, 'Case'], ['insertsCond', 2, 'Inserts'], ['buyFrom', 1, 'Buy From'], ['origin', 1, 'Country of origin'],
   ['note', 1, 'Note'], ['collection', 1, 'Collection'], ['tag', 1, 'Tag'], ['pic', 2, 'Pic'],
 ];
 const DATA_HEADERS = {
-  no: 'No.', name: 'Name', sku: 'SKU', caseType: 'Case', finish: 'Finish', code: 'Code', codeYear: 'Code Year',
+  no: 'No.', id: 'ID', name: 'Name', sku: 'SKU', caseType: 'Case', finish: 'Finish', code: 'Code', codeYear: 'Code Year',
   price: 'Price', date: 'Date Purchse|Date Purchase', yearPurchase: 'Year Purchse|Year Purchase', caseCond: 'Case cond.',
   insertsCond: 'Inserts Cond.', buyFrom: 'Buy From', origin: 'Country of origin', note: 'Note', collection: 'Collection', tag: 'Tag',
 };
@@ -99,10 +99,11 @@ function doPost(e) {
         case 'login': return { ok: true, owner: true };
         case 'list': return { ok: true, version: API_VERSION, owner: true, items: readItems_(true), lists: readLists_(), files: photoFiles_(), updated: new Date().toISOString() };
         case 'save': return { ok: true, item: saveItem_(body.item || {}) };
-        case 'delete': return { ok: true, no: deleteItem_(body.no) };
-        case 'uploadPhoto': return { ok: true, photo: uploadPhoto_(body.no, body.data, body.mime) };
-        case 'deletePhoto': return { ok: true, photos: deletePhoto_(body.no, body.id) };
-        case 'setMainPhoto': return { ok: true, photos: setMainPhoto_(body.no, body.id) };
+        // "pid" = ID cố định của chiếc Zippo (bản web cũ chỉ gửi "no")
+        case 'delete': return { ok: true, pid: deleteItem_(pid_(body)) };
+        case 'uploadPhoto': return { ok: true, photo: uploadPhoto_(pid_(body), body.data, body.mime) };
+        case 'deletePhoto': return { ok: true, photos: deletePhoto_(pid_(body), body.id) };
+        case 'setMainPhoto': return { ok: true, photos: setMainPhoto_(pid_(body), body.id) };
         default: throw new Error('Không rõ thao tác: ' + body.action);
       }
     } finally {
@@ -110,6 +111,8 @@ function doPost(e) {
     }
   });
 }
+
+function pid_(body) { return Number(body.pid != null ? body.pid : body.no); }
 
 function handle_(fn) {
   let out;
@@ -146,6 +149,8 @@ function readItems_(owner) {
   const zcol = function (c) { return c ? input.getRange(FIRST_ROW, c, n, 1).getDisplayValues() : []; };
   // Tag: lấy ở Data Zippo nếu có cột "Tag", không thì lấy thẳng từ sheet Zippo
   const tags = D.tag == null ? zcol(L.tag) : null;
+  // ID cố định (tên ảnh): lấy ở Data Zippo nếu có cột "ID", không thì ở sheet Zippo; chưa có cột ID thì dùng No.
+  const ids = D.id == null && L.id ? input.getRange(FIRST_ROW, L.id, n, 1).getValues() : null;
   let codes = [];
   if (owner) {
     const left = zcol(L.left);
@@ -159,9 +164,11 @@ function readItems_(owner) {
     const r = data[i];
     const name = clean_(v(r, 'name'));
     const no = Number(v(r, 'no'));
-    if (!name || !no) continue;
+    const id = Number(D.id != null ? v(r, 'id') : ids ? (ids[i - 1] || [''])[0] : no) || no;
+    if (!name || !id) continue;
     const item = {
-      no: no,
+      id: id,
+      no: no || null,
       name: name,
       sku: clean_(v(r, 'sku')),
       caseType: clean_(v(r, 'caseType')),
@@ -170,7 +177,7 @@ function readItems_(owner) {
       codeYear: num_(v(r, 'codeYear')),
       collection: clean_(v(r, 'collection')),
       tag: clean_(tags ? (tags[i - 1] || [''])[0] : v(r, 'tag')),
-      photos: (photos[no] || []).map(function (f) { return f.id; }),
+      photos: (photos[id] || []).map(function (f) { return f.id; }),
     };
     if (owner) {
       item.left = codes[i - 1] ? codes[i - 1][0] : '';
@@ -230,18 +237,21 @@ function listsSheet_() {
 
 // ---------- Ghi dữ liệu ----------
 
-// [[No., Tên], …] từ dòng 3 trở xuống
-function noNames_(sheet, L) {
+// Cột dùng để tìm một chiếc Zippo: cột ID nếu đã có, chưa có thì cột No.
+function keyCol_(L) { return L.col.id || L.col.no; }
+
+// [[ID (hoặc No.), Tên], …] từ dòng 3 trở xuống. Truyền col để đọc cột khác thay cho ID.
+function noNames_(sheet, L, col) {
   const n = Math.max(sheet.getLastRow() - FIRST_ROW + 1, 1);
-  const nos = sheet.getRange(FIRST_ROW, L.col.no, n, 1).getValues();
+  const nos = sheet.getRange(FIRST_ROW, col || keyCol_(L), n, 1).getValues();
   const names = sheet.getRange(FIRST_ROW, L.col.name, n, 1).getValues();
   return nos.map(function (r, i) { return [r[0], names[i][0]]; });
 }
 
-function findRow_(sheet, L, no) {
+function findRow_(sheet, L, pid) {
   const rows = noNames_(sheet, L);
   for (let i = 0; i < rows.length; i++) {
-    if (Number(rows[i][0]) === Number(no) && String(rows[i][1]).trim()) return FIRST_ROW + i;
+    if (Number(rows[i][0]) === Number(pid) && String(rows[i][1]).trim()) return FIRST_ROW + i;
   }
   return 0;
 }
@@ -254,9 +264,9 @@ function nextEmptyRow_(sheet, L) {
   return lastName + 1;
 }
 
-function maxNo_(sheet, L) {
+function maxNo_(sheet, L, col) {
   let max = 0;
-  noNames_(sheet, L).forEach(function (r) { if (String(r[1]).trim() && Number(r[0]) > max) max = Number(r[0]); });
+  noNames_(sheet, L, col).forEach(function (r) { if (String(r[1]).trim() && Number(r[0]) > max) max = Number(r[0]); });
   return max;
 }
 
@@ -265,23 +275,28 @@ function saveItem_(item) {
   const sheet = ss_().getSheetByName(SHEET_INPUT);
   const L = layout_(sheet);
   const COL = L.col;
-  let row = item.no ? findRow_(sheet, L, item.no) : 0;
+  // Tìm theo ID cố định (chưa có cột ID thì theo No.)
+  const pid = COL.id ? item.id : (item.id || item.no); // chưa có cột ID: item.id là No. cũ
+  let row = pid ? findRow_(sheet, L, pid) : 0;
   const isNew = !row;
   if (isNew) {
     row = nextEmptyRow_(sheet, L);
-    if (!item.no) item.no = maxNo_(sheet, L) + 1;
+    if (!item.no) item.no = maxNo_(sheet, L, COL.no) + 1;
+    if (COL.id && !item.id) item.id = maxNo_(sheet, L, COL.id) + 1;
     ensureFormulas_(sheet, L, row);
     if (COL.qlt) sheet.getRange(row, COL.qlt).setValue(1);
   }
+  if (!COL.id) item.id = item.no || pid;
   const fields = {
-    no: Number(item.no), name: item.name, sku: item.sku, caseType: item.caseType, finish: item.finish,
+    no: item.no === '' || item.no == null ? '' : Number(item.no), id: Number(item.id), name: item.name, sku: item.sku, caseType: item.caseType, finish: item.finish,
     left: item.left, right: codeRight_(item.right), price: item.price === '' || item.price == null ? '' : Number(item.price),
     date: item.date ? parseDate_(item.date) : '', caseCond: item.caseCond, insertsCond: item.insertsCond,
     buyFrom: item.buyFrom, origin: item.origin, note: item.note, collection: item.collection, tag: item.tag,
   };
   Object.keys(fields).forEach(function (k) {
     if (!COL[k]) return; // sheet không có cột này
-    if (!isNew && !(k in item) && k !== 'no') return; // không gửi = không đổi
+    if (!isNew && !(k in item)) return; // không gửi = không đổi
+    if (!isNew && k === 'id') return; // ID không bao giờ đổi
     const cell = sheet.getRange(row, COL[k]);
     let v = fields[k];
     if (v === undefined || v === null) v = '';
@@ -292,7 +307,7 @@ function saveItem_(item) {
   if (item.photosCount && COL.pic) sheet.getRange(row, COL.pic).setValue('x');
   ensureDataRow_(row);
   SpreadsheetApp.flush();
-  return readItems_(true).filter(function (it) { return it.no === Number(item.no); })[0] || { no: Number(item.no) };
+  return readItems_(true).filter(function (it) { return it.id === Number(item.id); })[0] || { id: Number(item.id), no: Number(item.no) };
 }
 
 function codeRight_(v) {
@@ -329,11 +344,11 @@ function ensureDataRow_(inputRow) {
 }
 
 // Xoá: kéo các dòng bên dưới lên một dòng (để sheet không bị dòng trống ở giữa và Data Zippo vẫn đúng)
-function deleteItem_(no) {
+function deleteItem_(pid) {
   const sheet = ss_().getSheetByName(SHEET_INPUT);
   const L = layout_(sheet);
-  const row = findRow_(sheet, L, no);
-  if (!row) throw new Error('Không tìm thấy No. ' + no);
+  const row = findRow_(sheet, L, pid);
+  if (!row) throw new Error('Không tìm thấy Zippo có ID ' + pid);
   const lastName = nextEmptyRow_(sheet, L) - 1;
   // Chỉ dời các cột anh nhập tay; cột công thức giữ nguyên
   L.inputCols.forEach(function (c) {
@@ -344,14 +359,14 @@ function deleteItem_(no) {
     sheet.getRange(lastName, c).clearContent();
   });
   SpreadsheetApp.flush();
-  return Number(no);
+  return Number(pid);
 }
 
 // ---------- Ảnh ----------
 
 function folder_() { return DriveApp.getFolderById(PHOTO_FOLDER_ID); }
 
-// Quy ước đặt tên ảnh: 12.jpg là ảnh chính, 12_2.jpg, 12_3.jpg… là ảnh phụ.
+// Quy ước đặt tên ảnh THEO ID (không theo No.): 12.jpg là ảnh chính, 12_2.jpg, 12_3.jpg… là ảnh phụ.
 // (Vẫn nhận thêm "12 (1).jpg", "12-2.jpg" cho chắc. Trang web cũng đọc tên ảnh theo quy tắc này.)
 const PHOTO_NAME = /^(\d+)\s*(?:[_\-\s]\s*(\d+)|\(\s*(\d+)\s*\))?\s*\.(jpe?g|png|webp|heic|gif)$/i;
 
@@ -372,7 +387,7 @@ function photoFiles_() {
   return files;
 }
 
-// { no: [{id, name, idx}] }
+// { ID: [{id, name, idx}] }
 function photoMap_() {
   const map = {};
   photoFiles_().forEach(function (f) {
@@ -388,44 +403,44 @@ function photoMap_() {
 
 function clearPhotoCache_() { CacheService.getScriptCache().removeAll(['files', 'photos']); }
 
-function uploadPhoto_(no, base64, mime) {
-  if (!no || !base64) throw new Error('Thiếu ảnh.');
+function uploadPhoto_(pid, base64, mime) {
+  if (!pid || !base64) throw new Error('Thiếu ảnh.');
   clearPhotoCache_();
-  const list = photoMap_()[Number(no)] || [];
+  const list = photoMap_()[Number(pid)] || [];
   // Ảnh đầu tiên: 12.jpg, các ảnh sau: 12_2.jpg, 12_3.jpg…
   const nextIdx = list.length ? Math.max(1, list.reduce(function (m, f) { return Math.max(m, f.idx); }, 0)) + 1 : 1;
-  const name = nextIdx === 1 ? no + '.jpg' : no + '_' + nextIdx + '.jpg';
+  const name = nextIdx === 1 ? pid + '.jpg' : pid + '_' + nextIdx + '.jpg';
   const blob = Utilities.newBlob(Utilities.base64Decode(base64), mime || 'image/jpeg', name);
   const file = folder_().createFile(blob);
-  markPic_(no, true);
+  markPic_(pid, true);
   clearPhotoCache_();
   return { id: file.getId(), name: name };
 }
 
 // Đánh dấu cột "Pic" trong sheet Zippo
-function markPic_(no, on) {
+function markPic_(pid, on) {
   const sheet = ss_().getSheetByName(SHEET_INPUT);
   const L = layout_(sheet);
-  const row = findRow_(sheet, L, no);
+  const row = findRow_(sheet, L, pid);
   if (!row || !L.col.pic) return;
   const cell = sheet.getRange(row, L.col.pic);
   if (on) cell.setValue('x'); else cell.clearContent();
 }
 
-function deletePhoto_(no, id) {
+function deletePhoto_(pid, id) {
   DriveApp.getFileById(id).setTrashed(true);
   clearPhotoCache_();
-  const left = photoMap_()[Number(no)] || [];
+  const left = photoMap_()[Number(pid)] || [];
   if (!left.length) {
-    markPic_(no, false);
+    markPic_(pid, false);
   }
   return left.map(function (f) { return f.id; });
 }
 
 // Đổi tên để ảnh được chọn thành 12.jpg (ảnh chính)
-function setMainPhoto_(no, id) {
+function setMainPhoto_(pid, id) {
   clearPhotoCache_();
-  const list = photoMap_()[Number(no)] || [];
+  const list = photoMap_()[Number(pid)] || [];
   const target = list.filter(function (f) { return f.id === id; })[0];
   const main = list[0];
   if (target && main && target.id !== main.id) {
@@ -435,7 +450,7 @@ function setMainPhoto_(no, id) {
     tmp.setName(target.name);
   }
   clearPhotoCache_();
-  return (photoMap_()[Number(no)] || []).map(function (f) { return f.id; });
+  return (photoMap_()[Number(pid)] || []).map(function (f) { return f.id; });
 }
 
 // ---------- Chạy một lần khi cài đặt ----------
@@ -444,8 +459,48 @@ function setMainPhoto_(no, id) {
 function setup() {
   if (!ownerPassword_()) throw new Error('Anh gõ mật khẩu vào dòng OWNER_PASSWORD rồi chạy lại setup nhé.');
   listsSheet_();
+  ensureIdColumn_();
   folder_().setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   clearPhotoCache_();
   Logger.log('Xong. Đã lưu mật khẩu. Số Zippo đọc được: ' + readItems_(true).length +
     ', số ảnh: ' + Object.keys(photoMap_()).length + ' chiếc có ảnh.');
+}
+
+/**
+ * Tạo cột "ID" ngay sau cột No. trong sheet Zippo (chỉ làm một lần, có rồi thì bỏ qua).
+ * ID ban đầu = số No. hiện tại, nên ảnh cũ (12.jpg, 12_2.jpg…) vẫn khớp, không phải đổi tên ảnh.
+ * No. trùng nhau hoặc để trống thì được cấp ID mới (số lớn nhất + 1) và ghi ra nhật ký.
+ * Từ đó: ảnh đặt tên theo ID, No. anh đánh lại thoải mái.
+ */
+function ensureIdColumn_() {
+  const sheet = ss_().getSheetByName(SHEET_INPUT);
+  let L = layout_(sheet);
+  if (L.col.id) return;
+  const c = L.col.no + 1;
+  sheet.insertColumnAfter(L.col.no);
+  sheet.getRange(1, c).setValue('ID');
+  L = layout_(sheet); // các cột bên phải đã dịch sang 1
+  const rows = noNames_(sheet, L, L.col.no);
+  const used = {};
+  let max = 0;
+  rows.forEach(function (r) { if (Number(r[0]) > max) max = Number(r[0]); });
+  const later = [];
+  const ids = rows.map(function (r, i) {
+    if (!String(r[1]).trim()) return [''];
+    const n = Number(r[0]);
+    if (n > 0 && Math.floor(n) === n && !used[n]) { used[n] = true; return [n]; }
+    later.push(i);
+    return [''];
+  });
+  const changed = later.map(function (i) {
+    ids[i] = [++max];
+    return 'dòng ' + (FIRST_ROW + i) + ' (No. ' + (rows[i][0] === '' ? 'trống' : rows[i][0]) + ') → ID ' + max;
+  });
+  sheet.getRange(1, c).setFontWeight('bold')
+    .setNote('ID cố định của từng chiếc Zippo. Ảnh đặt tên theo số này (12.jpg, 12_2.jpg…). KHÔNG sửa, KHÔNG đánh lại.');
+  sheet.getRange(2, c).clearContent();
+  sheet.getRange(FIRST_ROW, c, ids.length, 1).setValues(ids).setNumberFormat('0').setBackground('#f1f3f4');
+  SpreadsheetApp.flush();
+  Logger.log('Đã tạo cột ID (cột ' + c + ' của sheet Zippo).' +
+    (changed.length ? ' Các dòng No. trùng/trống được cấp ID mới, ảnh của chúng cần đặt tên theo ID mới: ' + changed.join('; ') : ' Mọi ID đều bằng No. hiện tại.'));
 }

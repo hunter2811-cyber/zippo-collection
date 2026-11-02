@@ -133,7 +133,7 @@
           <legend>Thông tin công khai</legend>
           <div class="field span2"><label for="fName">Tên *</label><input id="fName" name="name" required></div>
           <div class="field"><label for="fSku">SKU</label><input id="fSku" name="sku" placeholder="VD: 24293"></div>
-          <div class="field"><label for="fNo">No.</label><input id="fNo" name="no" inputmode="numeric" readonly></div>
+          <div class="field"><label for="fNo">No.</label><input id="fNo" name="no" inputmode="numeric" pattern="[0-9]*"></div>
           <div class="field wide"><label for="fCase">Case</label><select id="fCase" name="caseType"></select>
             <input id="fCaseOther" class="other" placeholder="Nhập Case khác" hidden></div>
           <div class="field wide"><label for="fFinish">Finish</label><select id="fFinish" name="finish"></select>

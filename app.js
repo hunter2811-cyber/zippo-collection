@@ -106,7 +106,9 @@
   }
 
   // Đọc tên ảnh trong thư mục Anh Zippo: 12.jpg là ảnh chính, 12_2.jpg, 12_3.jpg… là ảnh phụ
-  // (vẫn nhận thêm "12 (1).jpg", "12-2.jpg").
+  // (vẫn nhận thêm "12 (1).jpg", "12-2.jpg"). Số trong tên ảnh là ID cố định của chiếc Zippo
+  // (cột ID trong sheet Zippo), KHÔNG phải No., nên anh đánh lại No. thì ảnh vẫn đúng.
+  const pid = (it) => (it.id != null ? it.id : it.no);
   const PHOTO_NAME = /^(\d+)\s*(?:[_\-\s]\s*(\d+)|\(\s*(\d+)\s*\))?\s*\.(jpe?g|png|webp|heic|gif)$/i;
   function attachPhotos(items, files) {
     const map = {};
@@ -116,11 +118,11 @@
       const idx = m[2] ? Number(m[2]) : m[3] ? Number(m[3]) : 0;
       (map[Number(m[1])] = map[Number(m[1])] || []).push([idx, f.id]);
     });
-    items.forEach((it) => { it.photos = (map[it.no] || []).sort((a, b) => a[0] - b[0]).map((e) => e[1]); });
+    items.forEach((it) => { it.photos = (map[pid(it)] || []).sort((a, b) => a[0] - b[0]).map((e) => e[1]); });
   }
 
   // Phải khớp API_VERSION trong apps-script/Code.gs
-  const API_VERSION = 4;
+  const API_VERSION = 5;
 
   // Collection và Tag có thể có nhiều giá trị, viết cách nhau bằng dấu phẩy: "Nippon, Hope"
   const MULTI = ['collection', 'tag'];
@@ -451,7 +453,7 @@
     state.photoIndex = 0;
     fillDetail();
     if (!detail.open) detail.showModal();
-    history.replaceState(null, '', '#no=' + state.shown[i].no);
+    history.replaceState(null, '', '#id=' + pid(state.shown[i]));
   }
 
   function factRows(rows) {
@@ -469,7 +471,7 @@
     if (state.owner) {
       $('#dPrivate').innerHTML = '<h3>' + ICON.lock + 'Riêng tư</h3><dl class="facts">' + factRows([
         ['Giá mua', money(it.price)], ['Ngày mua', dateVN(it.date) || (it.yearPurchase || '')], ['Tình trạng vỏ', it.caseCond],
-        ['Tình trạng ruột', it.insertsCond], ['Mua tại', it.buyFrom], ['Xuất xứ', it.origin],
+        ['Tình trạng ruột', it.insertsCond], ['Mua tại', it.buyFrom], ['Xuất xứ', it.origin], ['ID ảnh', pid(it)],
       ]) + '</dl>' + (it.note ? '<p class="note">' + esc(it.note) + '</p>' : '');
     }
     fillDetailPhoto();
@@ -513,9 +515,10 @@
   });
 
   function openFromHash() {
-    const m = location.hash.match(/no=(\d+)/);
+    // #id=12 (link cũ dạng #no=12 vẫn mở được)
+    const m = location.hash.match(/(id|no)=(\d+)/);
     if (!m || detail.open) return;
-    const i = state.shown.findIndex((it) => it.no === Number(m[1]));
+    const i = state.shown.findIndex((it) => (m[1] === 'id' ? pid(it) : it.no) === Number(m[2]));
     if (i >= 0) openDetail(i);
   }
 
@@ -635,7 +638,8 @@
     $('#eSave').textContent = it ? 'Lưu thay đổi' : 'Thêm vào bộ sưu tập';
     $('#fName').value = v.name || '';
     $('#fSku').value = v.sku || '';
-    $('#fNo').value = it ? it.no : 'Tự động: ' + (state.items.reduce((m, x) => Math.max(m, x.no), 0) + 1);
+    $('#fNo').value = it && it.no != null ? it.no : '';
+    $('#fNo').placeholder = 'Tự động: ' + (state.items.reduce((m, x) => Math.max(m, x.no || 0), 0) + 1);
     const caseKnown = fillSelect($('#fCase'), state.lists.cases, v.caseType, true);
     $('#fCaseOther').hidden = caseKnown;
     $('#fCaseOther').value = caseKnown ? '' : v.caseType;
@@ -696,8 +700,9 @@
       .concat(queued.map((q, i) => '<div class="pitem"><img src="' + q.url + '" alt=""><span class="tag new">Mới</span><div class="acts">' +
         '<button type="button" data-unqueue="' + i + '" aria-label="Bỏ ảnh này" title="Bỏ ảnh này">' + ICON.trash + '</button></div></div>'));
     $('#ePhotos').innerHTML = html.join('');
-    const no = editing ? editing.no : 'No.';
-    $('#dropHint').textContent = 'Ảnh được lưu vào thư mục Anh Zippo với tên ' + no + '.jpg, ' + no + '_2.jpg… khi bấm Lưu.';
+    const id = editing ? pid(editing) : 'ID';
+    $('#dropHint').textContent = 'Ảnh được lưu vào thư mục Anh Zippo theo ID ảnh: ' + id + '.jpg, ' + id + '_2.jpg… khi bấm Lưu.' +
+      (editing ? '' : ' (Zippo mới được cấp ID tự động.)');
   }
 
   function addFiles(files) {
@@ -719,18 +724,18 @@
       renderPhotos();
       return;
     }
-    const no = editing.no;
+    const id = pid(editing);
     try {
       b.disabled = true;
       let res;
       if (b.dataset.del) {
         if (!(await ask('Xoá ảnh này?', 'Ảnh sẽ được chuyển vào Thùng rác của Google Drive (khôi phục được trong 30 ngày).'))) { b.disabled = false; return; }
-        res = await apiPost({ action: 'deletePhoto', no, id: b.dataset.del });
+        res = await apiPost({ action: 'deletePhoto', pid: id, no: id, id: b.dataset.del });
       } else if (b.dataset.main) {
-        res = await apiPost({ action: 'setMainPhoto', no, id: b.dataset.main });
+        res = await apiPost({ action: 'setMainPhoto', pid: id, no: id, id: b.dataset.main });
       }
       editing.photos = res.photos;
-      const item = state.items.find((x) => x.no === no);
+      const item = state.items.find((x) => pid(x) === id);
       if (item) item.photos = res.photos;
       renderPhotos();
       render();
@@ -762,8 +767,10 @@
   function readForm() {
     const pick = (sel, other) => ($(sel).value === '__other' ? $(other).value.trim() : $(sel).value);
     const price = $('#fPrice').value.trim().replace(/\./g, '').replace(',', '.');
+    const no = $('#fNo').value.trim();
     return {
-      no: editing ? editing.no : undefined,
+      id: editing ? pid(editing) : undefined,
+      no: /^\d+$/.test(no) ? Number(no) : undefined,
       name: $('#fName').value.trim(),
       sku: $('#fSku').value.trim(),
       caseType: pick('#fCase', '#fCaseOther'),
@@ -806,7 +813,7 @@
       for (let i = 0; i < queued.length; i++) {
         $('#eStatus').textContent = 'Đang tải ảnh ' + (i + 1) + '/' + queued.length + '…';
         const { data: b64, mime } = await toJpegBase64(queued[i].file);
-        const up = await apiPost({ action: 'uploadPhoto', no: saved.no, data: b64, mime });
+        const up = await apiPost({ action: 'uploadPhoto', pid: pid(saved), no: pid(saved), data: b64, mime });
         saved.photos = (saved.photos || []).concat(up.photo.id);
       }
       upsert(saved);
@@ -820,7 +827,7 @@
   });
 
   function upsert(item) {
-    const i = state.items.findIndex((x) => x.no === item.no);
+    const i = state.items.findIndex((x) => pid(x) === pid(item));
     if (i >= 0) state.items[i] = item; else state.items.push(item);
     store.del(CACHE_STORE + 'owner');
     renderFilters();
@@ -830,9 +837,9 @@
   async function deleteItem(it) {
     if (!(await ask('Xoá No. ' + it.no + '?', '“' + it.name + '” sẽ bị xoá khỏi sheet Zippo. Ảnh trong thư mục Anh Zippo vẫn được giữ lại.'))) return;
     try {
-      await apiPost({ action: 'delete', no: it.no });
+      await apiPost({ action: 'delete', pid: pid(it), no: pid(it) });
       detail.close();
-      state.items = state.items.filter((x) => x.no !== it.no);
+      state.items = state.items.filter((x) => pid(x) !== pid(it));
       store.del(CACHE_STORE + 'owner');
       renderFilters();
       render();
