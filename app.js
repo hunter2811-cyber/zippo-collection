@@ -31,6 +31,7 @@
     owner: false,
     key: store.get(KEY_STORE) || '',
     q: '',
+    noPhoto: false,
     filters: { collection: new Set(), tag: new Set(), caseType: new Set(), finish: new Set(), codeYear: new Set(), yearPurchase: new Set() },
     open: new Set(['caseType']),
     decadesOpen: new Set(),
@@ -353,6 +354,7 @@
   function clearFilters() {
     clearTimeout(qTimer);
     state.q = '';
+    state.noPhoto = false;
     $('#q').value = '';
     Object.values(state.filters).forEach((s) => s.clear());
     renderFilters();
@@ -418,6 +420,7 @@
     if (skip !== 'finish' && f.finish.size && !f.finish.has(it.finish)) return false;
     if (skip !== 'codeYear' && f.codeYear.size && !f.codeYear.has(String(it.codeYear || 'none'))) return false;
     if (skip !== 'yearPurchase' && f.yearPurchase.size && !f.yearPurchase.has(String(it.yearPurchase))) return false;
+    if (state.noPhoto && it.photos && it.photos.length) return false;
     if (state.q) {
       const hay = [it.no, it.name, it.sku, it.collection, it.tag, it.caseType, it.finish, it.code, it.codeYear, it.note, it.buyFrom, it.origin].join(' ').toLowerCase();
       const words = state.q.toLowerCase().split(/\s+/).filter(Boolean);
@@ -475,6 +478,7 @@
     if (f.finish.size) parts.push(Array.from(f.finish).join(', '));
     $('#summary').innerHTML = '<strong>' + state.shown.length + '</strong> / ' + state.items.length + ' chiếc' + (parts.length ? ' · ' + esc(parts.join(' · ')) : '');
     renderActiveChips();
+    renderOverview();
     $$('.view-switch .icon-btn').forEach((b) => {
       const on = b.dataset.view === state.view;
       b.classList.toggle('is-active', on);
@@ -483,6 +487,51 @@
     if (state.page === 'stats') renderStats();
   }
 
+  // Dải tổng quan đầu trang: chỉ hiện khi chưa lọc, chưa tìm
+  function renderOverview() {
+    const f = state.filters;
+    const busy = state.q || state.noPhoto || Object.keys(f).some((g) => f[g].size);
+    const ov = $('#overview');
+    ov.hidden = !!busy || !state.items.length;
+    if (ov.hidden) return;
+    const total = state.items.length;
+    const withPhoto = state.items.filter((it) => it.photos && it.photos.length).length;
+    $('#ovNum').textContent = total;
+    $('#ovPhotoTxt').textContent = withPhoto + ' / ' + total;
+    $('#ovBar').style.width = (100 * withPhoto / total).toFixed(1) + '%';
+    $('#ovNoPhoto').hidden = withPhoto === total;
+    const recent = state.items.slice().sort((a, b) => (b.no || 0) - (a.no || 0)).slice(0, 4);
+    $('#ovRecent').innerHTML = recent.map((it) => '<button type="button" class="ov-item" data-pid="' + pid(it) + '">' +
+      '<span class="ov-img">' + (it.photos && it.photos[0] ? '<img loading="lazy" src="' + img(it.photos[0], 400) + '" alt="">' : '') + '</span>' +
+      '<span class="ov-name">' + esc(it.name) + '</span><span class="ov-meta">#' + it.no + ' · ' + esc(it.code || '—') + '</span></button>').join('');
+  }
+  $('#ovNoPhoto').addEventListener('click', () => { state.noPhoto = true; render(); $('#main').focus({ preventScroll: true }); });
+  $('#ovRecent').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-pid]');
+    if (!b) return;
+    const i = state.shown.findIndex((x) => pid(x) === Number(b.dataset.pid));
+    if (i >= 0) openDetail(i);
+  });
+
+  // Chế độ tối: nhớ trên từng máy
+  const THEME_STORE = 'zc-theme';
+  function setTheme(dark) {
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    const b = $('#themeBtn');
+    b.setAttribute('aria-pressed', dark);
+    b.setAttribute('aria-label', dark ? 'Tắt chế độ tối' : 'Bật chế độ tối');
+    b.innerHTML = dark ? '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>'
+      : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
+    const meta = $('meta[name="theme-color"]');
+    if (meta) meta.content = dark ? '#0e0d0c' : '#141414';
+  }
+  setTheme(store.get(THEME_STORE) === 'dark');
+  $('#themeBtn').addEventListener('click', () => {
+    const dark = document.documentElement.dataset.theme !== 'dark';
+    store.set(THEME_STORE, dark ? 'dark' : 'light');
+    setTheme(dark);
+  });
+
   function renderActiveChips() {
     const out = [];
     const names = { collection: '', tag: '#', caseType: '', finish: '', codeYear: 'Code ', yearPurchase: 'Mua ' };
@@ -490,6 +539,7 @@
       out.push('<button type="button" class="chip is-on" data-chip-group="' + g + '" data-chip-value="' + esc(v) + '" aria-label="Bỏ lọc ' + esc(v) + '">' +
         esc(names[g] + (v === 'none' ? 'không rõ' : v)) + ' <span aria-hidden="true">×</span></button>');
     }));
+    if (state.noPhoto) out.push('<button type="button" class="chip is-on" data-chip-nophoto aria-label="Bỏ lọc chưa có ảnh">Chưa có ảnh <span aria-hidden="true">×</span></button>');
     if (state.q) out.push('<button type="button" class="chip is-on" data-chip-q aria-label="Bỏ tìm kiếm">“' + esc(state.q) + '” <span aria-hidden="true">×</span></button>');
     $('#activeChips').innerHTML = out.join('');
   }
@@ -497,7 +547,8 @@
     const c = e.target.closest('.chip');
     if (!c) return;
     const at = $$('#activeChips .chip').indexOf(c);
-    if (c.hasAttribute('data-chip-q')) { state.q = ''; $('#q').value = ''; }
+    if (c.hasAttribute('data-chip-nophoto')) state.noPhoto = false;
+    else if (c.hasAttribute('data-chip-q')) { state.q = ''; $('#q').value = ''; }
     else state.filters[c.dataset.chipGroup].delete(c.dataset.chipValue);
     renderFilters();
     render();
@@ -567,7 +618,9 @@
     const it = state.shown[state.detailIndex];
     const photos = it.photos || [];
     const id = photos[state.photoIndex];
-    $('#dImg').innerHTML = id ? '<img src="' + img(id, 1600) + '" alt="' + esc(it.name) + '">' : stampHtml(it);
+    $('#dImg').innerHTML = (id ? '<img src="' + img(id, 1600) + '" alt="' + esc(it.name) + '">' : stampHtml(it)) +
+      (photos.length > 1 ? '<span class="pcounter">' + (state.photoIndex + 1) + ' / ' + photos.length + '</span><span class="pdots" aria-hidden="true">' + photos.map((p, i) => '<i' + (i === state.photoIndex ? ' class="on"' : '') + '></i>').join('') + '</span>' : '');
+    $('#dImg').classList.remove('is-zoom');
     $('#dThumbs').innerHTML = photos.length > 1 ? photos.map((p, i) => '<button type="button" class="' + (i === state.photoIndex ? 'is-on' : '') + '" data-p="' + i + '" aria-label="Ảnh ' + (i + 1) + '"' + (i === state.photoIndex ? ' aria-current="true"' : '') + '><img loading="lazy" src="' + img(p, 200) + '" alt=""></button>').join('') : '';
   }
 
@@ -588,6 +641,23 @@
   detail.addEventListener('close', () => {
     history.replaceState(null, '', location.pathname + location.search);
     if (!$('dialog[open]')) focusCard(state.detailIndex);
+  });
+  // Chạm hai lần (hoặc nhấp đúp) để phóng to chỗ vừa chạm
+  $('#dImg').addEventListener('dblclick', (e) => {
+    const box = $('#dImg');
+    const im = box.querySelector('img');
+    if (!im) return;
+    const r = im.getBoundingClientRect();
+    im.style.transformOrigin = ((e.clientX - r.left) / r.width * 100).toFixed(0) + '% ' + ((e.clientY - r.top) / r.height * 100).toFixed(0) + '%';
+    box.classList.toggle('is-zoom');
+  });
+  $('#dShare').addEventListener('click', async () => {
+    const it = state.shown[state.detailIndex];
+    const url = location.href.split('#')[0] + '#id=' + pid(it);
+    try {
+      if (navigator.share) await navigator.share({ title: it.name, url });
+      else { await navigator.clipboard.writeText(url); toast('Đã chép đường link của #' + it.no); }
+    } catch (err) { toast('Đường link: ' + url); }
   });
   $('#dEdit').addEventListener('click', () => { const it = state.shown[state.detailIndex]; detail.close(); openEditor(it); });
   $('#dDelete').addEventListener('click', () => deleteItem(state.shown[state.detailIndex]));
@@ -1040,37 +1110,69 @@
   }
   const short = (k) => (k >= 1000000 ? (k / 1000000).toLocaleString('vi-VN', { maximumFractionDigits: 1 }) + ' tỷ' : k >= 1000 ? (k / 1000).toLocaleString('vi-VN', { maximumFractionDigits: 1 }) + ' tr' : Math.round(k) + 'k');
 
+  // Biểu đồ cột đứng; data-decade để bấm cột mở bộ sưu tập đã lọc
+  function columns(entries, fmt, attr) {
+    const max = Math.max(1, ...entries.map((e) => e[1]));
+    return '<div class="cols">' + entries.map(([k, v, title, key]) => '<button type="button" class="col"' + (attr && key != null ? ' ' + attr + '="' + esc(key) + '"' : ' tabindex="-1"') +
+      ' title="' + esc(title || (k + ': ' + (fmt ? fmt(v) : v))) + '"><span class="col-val">' + (fmt ? fmt(v) : v) + '</span>' +
+      '<span class="col-bar" style="height:' + (100 * v / max).toFixed(1) + '%"></span><span class="col-name">' + esc(k) + '</span></button>').join('') + '</div>';
+  }
+
   function renderStats() {
     const items = state.items;
     const byCount = (field) => Array.from(countBy(field)).sort((a, b) => b[1] - a[1]);
     const decades = new Map();
-    items.forEach((it) => { const d = decadeLabel(decadeOf(it.codeYear)); decades.set(d, (decades.get(d) || 0) + 1); });
+    items.forEach((it) => { const d = decadeOf(it.codeYear); decades.set(d, (decades.get(d) || 0) + 1); });
     const withPhoto = items.filter((it) => it.photos && it.photos.length).length;
+    const pct = items.length ? Math.round(100 * withPhoto / items.length) : 0;
+    const years = items.map((it) => it.codeYear).filter(Boolean);
+    const oldest = years.length ? Math.min(...years) : '—';
     let kpi = '<div class="kpi"><div class="k">Tổng số Zippo</div><div class="v">' + items.length + '</div></div>' +
-      '<div class="kpi"><div class="k">Số loại Case</div><div class="v">' + countBy('caseType').size + '</div></div>' +
+      '<div class="kpi"><div class="k">Chiếc cũ nhất (Code Year)</div><div class="v">' + oldest + '</div></div>' +
       '<div class="kpi"><div class="k">Đã có ảnh</div><div class="v">' + withPhoto + '</div></div>';
-    let html = panel('Theo Case', bars(byCount('caseType'))) +
-      panel('Finish phổ biến', bars(byCount('finish').slice(0, 12))) +
-      panel('Code Year theo thập niên', bars(Array.from(decades).sort((a, b) => (a[0] === 'Không rõ') - (b[0] === 'Không rõ') || a[0].localeCompare(b[0]))));
+    const decadeRows = Array.from(decades).sort((a, b) => (a[0] === 'none') - (b[0] === 'none') || a[0] - b[0])
+      .map(([d, n]) => [decadeLabel(d), n, decadeLabel(d) + ': ' + n + ' chiếc, bấm để xem', String(d)]);
+    const ring = '<div class="ring"><svg viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="15.5" class="ring-bg"/><circle cx="18" cy="18" r="15.5" class="ring-fg" stroke-dasharray="' + (pct * 0.974).toFixed(1) + ' 100" transform="rotate(-90 18 18)"/></svg>' +
+      '<div class="ring-txt"><b>' + pct + '%</b><span>đã có ảnh</span></div></div>' +
+      (withPhoto < items.length ? '<button type="button" class="link-btn" id="statsNoPhoto">Xem ' + (items.length - withPhoto) + ' chiếc chưa có ảnh</button>' : '');
+    let html = '<section class="panel panel-wide"><h2>Code Year theo thập niên</h2>' + columns(decadeRows, null, 'data-decade') +
+      '<p class="note">Bấm vào một cột để mở bộ sưu tập đã lọc theo thập niên đó.</p></section>' +
+      panel('Tiến độ chụp ảnh', ring) +
+      panel('Theo Case', bars(byCount('caseType'))) +
+      panel('Finish phổ biến', bars(byCount('finish').slice(0, 12)));
     if (state.owner) {
       const total = items.reduce((s, it) => s + (it.price || 0), 0);
-      kpi += '<div class="kpi"><div class="k">' + ICON.lock + 'Tổng giá trị</div><div class="v">' + short(total) + '</div></div>';
-      const years = new Map();
+      const thisYear = new Date().getFullYear();
+      kpi += '<div class="kpi"><div class="k">' + ICON.lock + 'Mua năm ' + thisYear + '</div><div class="v">' + items.filter((it) => it.yearPurchase === thisYear).length + '</div></div>' +
+        '<div class="kpi kpi-private"><div class="k">' + ICON.lock + 'Tổng giá trị</div><div class="v">' + short(total) + '</div></div>';
+      const ym = new Map();
       items.forEach((it) => {
         if (!it.yearPurchase) return;
-        const e = years.get(it.yearPurchase) || [0, 0];
+        const e = ym.get(it.yearPurchase) || [0, 0];
         e[0] += 1; e[1] += it.price || 0;
-        years.set(it.yearPurchase, e);
+        ym.set(it.yearPurchase, e);
       });
-      const ys = Array.from(years).sort((a, b) => a[0] - b[0]);
-      html += panel('Số chiếc mua theo năm', bars(ys.map(([y, e]) => [String(y), e[0]])), true) +
-        panel('Chi tiêu theo năm', bars(ys.map(([y, e]) => [String(y), e[1]]), short), true) +
+      const ys = Array.from(ym).sort((a, b) => a[0] - b[0]);
+      html += '<section class="panel panel-wide panel-private"><h2>' + 'Chi tiêu theo năm' + ICON.lock + '</h2>' +
+        columns(ys.map(([y, e]) => ["'" + String(y).slice(2), e[1], y + ': ' + e[0] + ' chiếc, ' + money(e[1])]), short) +
+        '<p class="note">Di chuột hoặc chạm giữ vào cột để xem số chiếc và tổng tiền năm đó.</p></section>' +
+        panel('Số chiếc mua theo năm', bars(ys.map(([y, e]) => [String(y), e[0]])), true) +
         panel('Mua tại', bars(byCount('buyFrom')), true) +
         panel('Xuất xứ', bars(byCount('origin')), true) +
         panel('Thư mục ảnh', '<p class="note">Mỗi Zippo một thư mục “No. - Tên - ID” trong Anh Zippo. Máy tự đồng bộ mỗi giờ; bấm nút dưới đây nếu anh vừa sửa tên hoặc đánh lại No. trong sheet và muốn đồng bộ ngay.</p>' +
           '<button type="button" class="btn btn-dark" id="syncFolders">Đồng bộ thư mục ảnh</button>', true);
     }
     $('#statsView').innerHTML = '<h1>Thống kê</h1><div class="kpis">' + kpi + '</div><div class="panels">' + html + '</div>';
+    $$('#statsView [data-decade]').forEach((c) => c.addEventListener('click', () => {
+      clearFilters();
+      const d = c.dataset.decade;
+      state.items.forEach((it) => { if (String(decadeOf(it.codeYear)) === d) state.filters.codeYear.add(String(it.codeYear || 'none')); });
+      renderFilters();
+      go('collection');
+      render();
+    }));
+    const np = $('#statsNoPhoto');
+    if (np) np.addEventListener('click', () => { clearFilters(); state.noPhoto = true; go('collection'); render(); });
     const sync = $('#syncFolders');
     if (sync) sync.addEventListener('click', async () => {
       sync.disabled = true;

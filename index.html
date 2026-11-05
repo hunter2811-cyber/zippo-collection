@@ -28,6 +28,7 @@
     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
     <input id="q" type="search" placeholder="Tìm theo tên, mã, Finish…" autocomplete="off">
   </label>
+  <button type="button" class="icon-btn theme-btn" id="themeBtn" aria-label="Bật chế độ tối" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
   <button type="button" class="btn btn-accent owner-only" id="addBtn">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Thêm Zippo</span>
   </button>
@@ -56,6 +57,20 @@
 
   <main class="content" id="main" tabindex="-1">
     <h1 class="sr-only">Bộ sưu tập Zippo</h1>
+    <section class="overview" id="overview" aria-label="Tổng quan" hidden>
+      <div class="ov-main">
+        <p class="ov-num"><span id="ovNum"></span><small>chiếc Zippo trong bộ sưu tập</small></p>
+        <div class="ov-progress">
+          <div class="ov-row"><span>Tiến độ chụp ảnh</span><b id="ovPhotoTxt"></b></div>
+          <div class="meter" aria-hidden="true"><i id="ovBar"></i></div>
+          <button type="button" class="link-btn" id="ovNoPhoto">Xem các chiếc chưa có ảnh</button>
+        </div>
+      </div>
+      <div class="ov-recent">
+        <div class="ov-head"><h2>Mới thêm gần đây</h2></div>
+        <div class="ov-list" id="ovRecent"></div>
+      </div>
+    </section>
     <div class="toolbar">
       <button type="button" class="btn btn-ghost filter-toggle" id="openFilters" aria-controls="filters" aria-expanded="false">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
@@ -103,11 +118,15 @@
     <h2 id="dTitle" tabindex="-1" aria-live="polite"></h2>
     <dl class="facts" id="dFacts"></dl>
     <section class="private owner-only" id="dPrivate" aria-label="Thông tin riêng tư"></section>
-    <div class="detail-actions owner-only">
-      <button type="button" class="btn btn-ghost danger" id="dDelete">
+    <div class="detail-actions">
+      <button type="button" class="btn btn-ghost" id="dShare">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5M5 13v7h14v-7"/></svg>Chia sẻ
+      </button>
+      <div class="grow"></div>
+      <button type="button" class="btn btn-ghost danger owner-only" id="dDelete">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>Xoá
       </button>
-      <button type="button" class="btn btn-dark" id="dEdit">
+      <button type="button" class="btn btn-dark owner-only" id="dEdit">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/></svg>Sửa
       </button>
     </div>
