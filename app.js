@@ -446,14 +446,16 @@
       (it.codeYear ? '<span class="stamp-year">' + esc(it.codeYear) + '</span>' : '');
   }
 
+  // Ô giống bản đang chạy: số # và số ảnh nằm trên ảnh; dưới ảnh là tên, Case · Finish, rồi mã và giá
   function cardHtml(it, i) {
     const photo = it.photos && it.photos[0];
-    const meta = [it.caseType, it.finish].filter(Boolean).map((m) => '<span>' + esc(m) + '</span>').join(' ');
+    const meta = [it.caseType, it.finish].filter(Boolean).join(' · ');
     return '<button type="button" class="card' + (photo ? '' : ' is-stamped') + '" data-i="' + i + '" aria-label="' + esc('Xem chi tiết #' + it.no + ' ' + it.name + (it.code ? ', mã ' + it.code : '')) + '">' +
-      '<div class="card-img">' + (photo ? '<img loading="lazy" decoding="async" src="' + img(photo, 600) + '" alt="">' : '') + '</div>' +
-      '<div class="card-body"><h3>' + esc(it.name).replace(/ - /g, '&nbsp;- ') + '</h3><p class="meta">' + (meta || '<span>—</span>') + '</p>' +
-      '<div class="foot"><span class="no-badge">#' + it.no + '</span><span class="code">' + esc(it.code || '—') + '</span>' +
-      (it.photos && it.photos.length > 1 ? '<span class="pcount">' + it.photos.length + ' ảnh</span>' : '') + (state.owner && it.price ? '<span class="price">' + money(it.price) + '</span>' : '') + '</div></div></button>';
+      '<div class="card-img">' + (photo ? '<img loading="lazy" decoding="async" src="' + img(photo, 600) + '" alt="">' : '') +
+      '<span class="no-badge">#' + it.no + '</span>' + (it.photos && it.photos.length > 1 ? '<span class="pcount">' + it.photos.length + ' ảnh</span>' : '') + '</div>' +
+      '<div class="card-body"><h3>' + esc(it.name).replace(/ - /g, '&nbsp;- ') + '</h3><p class="meta">' + esc(meta || '—') + '</p>' +
+      '<div class="foot"><span class="code">' + esc(it.code || '—') + '</span>' +
+      (state.owner && it.price ? '<span class="price">' + money(it.price) + '</span>' : '') + '</div></div></button>';
   }
 
   function render() {
