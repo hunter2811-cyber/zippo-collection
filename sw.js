@@ -1,6 +1,6 @@
 // Lưu giao diện để mở nhanh và mở được khi mất mạng. Dữ liệu và ảnh luôn lấy mới từ Google.
-const CACHE = 'zippo-v2';
-const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'config.js', 'manifest.webmanifest', 'icons/icon-192.png'];
+const CACHE = 'zippo-v3';
+const SHELL = ['./', 'index.html', 'styles.css', 'tokens.css', 'base.css', 'app.js', 'config.js', 'manifest.webmanifest', 'icons/icon-192.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

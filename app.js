@@ -21,7 +21,6 @@
     lock: '<svg class="lock" viewBox="0 0 24 24" role="img" aria-label="' + PRIVATE_TITLE + '"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
     up: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>',
     down: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>',
-    lighter: '<svg class="ph" viewBox="0 0 54 84" aria-hidden="true"><rect x="3" y="26" width="48" height="55" rx="5"/><path d="M3 34h48"/><rect x="10" y="3" width="34" height="23" rx="3"/><circle cx="20" cy="10" r="1.5"/><circle cx="27" cy="10" r="1.5"/><circle cx="34" cy="10" r="1.5"/><circle cx="20" cy="18" r="1.5"/><circle cx="27" cy="18" r="1.5"/><circle cx="34" cy="18" r="1.5"/></svg>',
     star: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>',
     trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>',
   };
@@ -59,29 +58,44 @@
   const decadeLabel = (d) => (d === 'none' ? 'Không rõ' : String(d).slice(0, 3) + 'x');
 
   // ---------- Gọi máy chủ ----------
+  async function request(url, opts) {
+    try {
+      const res = await fetch(url, opts);
+      return await res.json();
+    } catch (e) {
+      throw new Error('Không kết nối được máy chủ, anh kiểm tra mạng rồi thử lại.');
+    }
+  }
   async function apiGet() {
-    const res = await fetch(API + '?t=' + Date.now(), { redirect: 'follow' });
-    return check(await res.json());
+    return check(await request(API + '?t=' + Date.now(), { redirect: 'follow' }));
   }
   async function apiPost(body) {
-    const res = await fetch(API, {
+    return check(await request(API, {
       method: 'POST', redirect: 'follow',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(Object.assign({ key: state.key }, body)),
-    });
-    return check(await res.json());
+    }));
   }
   function check(data) {
     if (!data || !data.ok) throw new Error((data && data.error) || 'Máy chủ không trả lời.');
     return data;
   }
 
+  function setEmpty(text, action) {
+    $('#emptyText').textContent = text;
+    $('#emptyAction').textContent = action;
+    $('#empty').hidden = false;
+  }
+
   async function load() {
     const cacheKey = CACHE_STORE + (state.key ? 'owner' : 'guest');
     const cached = store.get(cacheKey);
+    state.loadFailed = false;
+    $('#empty').hidden = true;
     if (cached) {
       try { applyData(JSON.parse(cached)); } catch (e) { /* bỏ qua */ }
     } else {
+      $('#summary').textContent = 'Đang tải…';
       renderSkeleton();
     }
     if (!API) {
@@ -100,8 +114,14 @@
         toast('Mật khẩu đã đổi, anh đăng nhập lại nhé.');
         return load();
       }
-      toast(cached ? 'Đang xem bản lưu trên máy (không tải được dữ liệu mới).' : 'Không tải được dữ liệu: ' + err.message);
-      if (!cached) $('#summary').textContent = 'Không tải được dữ liệu.';
+      if (cached) {
+        toast('Đang xem bản lưu trên máy (không tải được dữ liệu mới).');
+        return;
+      }
+      state.loadFailed = true;
+      $('#grid').innerHTML = '';
+      $('#summary').textContent = 'Không tải được dữ liệu.';
+      setEmpty(err.message, 'Thử lại');
     }
   }
 
@@ -209,6 +229,8 @@
       (open ? '<div class="fgroup-body">' + body + '</div>' : '') + '</div>';
   }
 
+  const filterKey = (el) => [el.tagName, el.dataset.group, el.dataset.decade, el.dataset.toggle, el.dataset.more, el.dataset.decadeOpen, el.dataset.year, el.value].join('|');
+
   function renderFilters() {
     const f = state.filters;
     const html = [];
@@ -275,8 +297,16 @@
       html.push(groupHtml('yearPurchase', 'Năm mua', yp.map((v) => optHtml('yearPurchase', v, v, now.get(v) || 0, f.yearPurchase.has(String(v)))).join(''), true));
     }
 
+    // Vẽ lại làm mất ô đang focus, nên tìm lại đúng ô đó (có thể đã đổi chỗ vì xếp theo số đếm)
+    const active = document.activeElement;
+    const focused = $('#filterGroups').contains(active) ? filterKey(active) : null;
+    const headKey = focused && active.closest('.fgroup').querySelector('.fgroup-head').dataset.toggle;
     $('#filterGroups').innerHTML = html.join('');
     $$('#filterGroups input[data-partial]').forEach((el) => { el.indeterminate = true; });
+    if (focused) {
+      const same = $$('#filterGroups input, #filterGroups button').find((el) => !el.disabled && filterKey(el) === focused);
+      (same || $('#filterGroups [data-toggle="' + headKey + '"]')).focus();
+    }
     const total = Object.values(f).reduce((s, set) => s + set.size, 0);
     const badge = $('#filterBadge');
     badge.hidden = !total;
@@ -321,23 +351,45 @@
   });
 
   function clearFilters() {
+    clearTimeout(qTimer);
+    state.q = '';
+    $('#q').value = '';
     Object.values(state.filters).forEach((s) => s.clear());
     renderFilters();
     render();
   }
   $('#clearFilters').addEventListener('click', clearFilters);
   $('#sheetClear').addEventListener('click', clearFilters);
+  $('#emptyAction').addEventListener('click', () => {
+    if (state.loadFailed) load(); else clearFilters();
+    $('#main').focus({ preventScroll: true });
+  });
 
-  // Tấm lọc trên điện thoại
+  // Tấm lọc trên điện thoại. Chỉ là hộp thoại khi đang mở; trên máy tính đây là cột lọc thường.
+  const sheet = $('#filters');
+  const sheetIsOpen = () => sheet.classList.contains('is-open');
   function openSheet(open) {
-    $('#filters').classList.toggle('is-open', open);
+    if (open === sheetIsOpen()) return;
+    sheet.classList.toggle('is-open', open);
     $('#filtersBackdrop').hidden = !open;
     document.body.style.overflow = open ? 'hidden' : '';
+    $('#openFilters').setAttribute('aria-expanded', open);
+    if (open) {
+      sheet.setAttribute('role', 'dialog');
+      sheet.setAttribute('aria-modal', 'true');
+    } else {
+      sheet.removeAttribute('role');
+      sheet.removeAttribute('aria-modal');
+    }
+    $$('.topbar, .content, .bottom-nav').forEach((el) => { el.inert = open; });
+    $(open ? '#closeFilters' : '#openFilters').focus();
   }
   $('#openFilters').addEventListener('click', () => openSheet(true));
   $('#closeFilters').addEventListener('click', () => openSheet(false));
   $('#sheetApply').addEventListener('click', () => openSheet(false));
   $('#filtersBackdrop').addEventListener('click', () => openSheet(false));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') openSheet(false); });
+  window.matchMedia('(max-width: 799px)').addEventListener('change', (e) => { if (!e.matches) openSheet(false); });
 
   // ---------- Danh sách ----------
   const SORTS = [
@@ -387,22 +439,32 @@
     }
   }
 
+  // Trong trang chi tiết, chiếc chưa có ảnh hiện mã đáy của chính nó
+  function stampHtml(it) {
+    const code = String(it.code || '—');
+    return '<span class="stamp' + (it.code ? '' : ' is-none') + '" style="--len:' + Math.max(code.length, 3) + '" aria-hidden="true">' + esc(code) + '</span>' +
+      (it.codeYear ? '<span class="stamp-year">' + esc(it.codeYear) + '</span>' : '');
+  }
+
   function cardHtml(it, i) {
     const photo = it.photos && it.photos[0];
-    const meta = [it.caseType, it.finish].filter(Boolean).join(' · ');
-    return '<button type="button" class="card" data-i="' + i + '" aria-label="Xem chi tiết ' + esc(it.name) + '">' +
-      '<div class="card-img">' + (photo ? '<img loading="lazy" decoding="async" src="' + img(photo, 600) + '" alt="">' : ICON.lighter) +
-      '<span class="no-badge">#' + it.no + '</span>' + (it.photos && it.photos.length > 1 ? '<span class="pcount">' + it.photos.length + ' ảnh</span>' : '') + '</div>' +
-      '<div class="card-body"><h3>' + esc(it.name) + '</h3><p class="meta">' + esc(meta || '—') + '</p>' +
-      '<div class="foot"><span class="code">' + esc(it.code || '—') + '</span>' + (state.owner && it.price ? '<span class="price">' + money(it.price) + '</span>' : '') + '</div></div></button>';
+    const meta = [it.caseType, it.finish].filter(Boolean).map((m) => '<span>' + esc(m) + '</span>').join(' ');
+    return '<button type="button" class="card' + (photo ? '' : ' is-stamped') + '" data-i="' + i + '" aria-label="' + esc('Xem chi tiết #' + it.no + ' ' + it.name + (it.code ? ', mã ' + it.code : '')) + '">' +
+      '<div class="card-img">' + (photo ? '<img loading="lazy" decoding="async" src="' + img(photo, 600) + '" alt="">' : '') + '</div>' +
+      '<div class="card-body"><h3>' + esc(it.name).replace(/ - /g, '&nbsp;- ') + '</h3><p class="meta">' + (meta || '<span>—</span>') + '</p>' +
+      '<div class="foot"><span class="no-badge">#' + it.no + '</span><span class="code">' + esc(it.code || '—') + '</span>' +
+      (it.photos && it.photos.length > 1 ? '<span class="pcount">' + it.photos.length + ' ảnh</span>' : '') + (state.owner && it.price ? '<span class="price">' + money(it.price) + '</span>' : '') + '</div></div></button>';
   }
 
   function render() {
+    if (state.loadFailed) return;
     state.shown = state.items.filter((it) => matches(it)).sort(sorter());
     const grid = $('#grid');
     grid.classList.toggle('is-list', state.view === 'list');
     grid.innerHTML = state.shown.map(cardHtml).join('');
-    $('#empty').hidden = state.shown.length > 0 || !state.items.length;
+    if (state.shown.length || !state.items.length) $('#empty').hidden = true;
+    else setEmpty('Không có chiếc Zippo nào khớp.', 'Xoá tìm kiếm và bộ lọc');
+    $('#sheetApply').textContent = 'Xem ' + state.shown.length + ' chiếc';
     const parts = [];
     const f = state.filters;
     if (f.collection.size) parts.push(Array.from(f.collection).join(', '));
@@ -432,10 +494,13 @@
   $('#activeChips').addEventListener('click', (e) => {
     const c = e.target.closest('.chip');
     if (!c) return;
+    const at = $$('#activeChips .chip').indexOf(c);
     if (c.hasAttribute('data-chip-q')) { state.q = ''; $('#q').value = ''; }
     else state.filters[c.dataset.chipGroup].delete(c.dataset.chipValue);
     renderFilters();
     render();
+    const chips = $$('#activeChips .chip');
+    (chips[Math.min(at, chips.length - 1)] || $('#main')).focus({ preventScroll: true });
   });
 
   function renderSkeleton() {
@@ -455,6 +520,11 @@
 
   // ---------- Chi tiết ----------
   const detail = $('#detail');
+
+  function focusCard(i) {
+    const c = $('.card[data-i="' + i + '"]');
+    if (c) c.focus();
+  }
 
   function openDetail(i) {
     if (i < 0 || i >= state.shown.length) return;
@@ -486,27 +556,37 @@
     fillDetailPhoto();
     $('#dPrev').disabled = state.detailIndex === 0;
     $('#dNext').disabled = state.detailIndex === state.shown.length - 1;
+    // Ảnh nhỏ vừa bị vẽ lại hoặc nút vừa bị khoá thì focus rơi mất, đưa về tên chiếc Zippo
+    const a = document.activeElement;
+    if (detail.open && (a.disabled || !detail.contains(a))) $('#dTitle').focus({ preventScroll: true });
   }
 
   function fillDetailPhoto() {
     const it = state.shown[state.detailIndex];
     const photos = it.photos || [];
     const id = photos[state.photoIndex];
-    $('#dImg').innerHTML = id ? '<img src="' + img(id, 1600) + '" alt="' + esc(it.name) + '">' : ICON.lighter;
-    $('#dThumbs').innerHTML = photos.length > 1 ? photos.map((p, i) => '<button type="button" class="' + (i === state.photoIndex ? 'is-on' : '') + '" data-p="' + i + '" aria-label="Ảnh ' + (i + 1) + '"><img loading="lazy" src="' + img(p, 200) + '" alt=""></button>').join('') : '';
+    $('#dImg').innerHTML = id ? '<img src="' + img(id, 1600) + '" alt="' + esc(it.name) + '">' : stampHtml(it);
+    $('#dThumbs').innerHTML = photos.length > 1 ? photos.map((p, i) => '<button type="button" class="' + (i === state.photoIndex ? 'is-on' : '') + '" data-p="' + i + '" aria-label="Ảnh ' + (i + 1) + '"' + (i === state.photoIndex ? ' aria-current="true"' : '') + '><img loading="lazy" src="' + img(p, 200) + '" alt=""></button>').join('') : '';
   }
 
   $('#dThumbs').addEventListener('click', (e) => {
     const b = e.target.closest('button');
-    if (b) { state.photoIndex = Number(b.dataset.p); fillDetailPhoto(); }
+    if (!b) return;
+    state.photoIndex = Number(b.dataset.p);
+    fillDetailPhoto();
+    $('#dThumbs [data-p="' + state.photoIndex + '"]').focus();
   });
   $('#dPrev').addEventListener('click', () => openDetail(state.detailIndex - 1));
   $('#dNext').addEventListener('click', () => openDetail(state.detailIndex + 1));
-  detail.addEventListener('keydown', (e) => {
+  document.addEventListener('keydown', (e) => {
+    if (!detail.open || $('dialog[open]:not(#detail)')) return;
     if (e.key === 'ArrowLeft') openDetail(state.detailIndex - 1);
     if (e.key === 'ArrowRight') openDetail(state.detailIndex + 1);
   });
-  detail.addEventListener('close', () => history.replaceState(null, '', location.pathname + location.search));
+  detail.addEventListener('close', () => {
+    history.replaceState(null, '', location.pathname + location.search);
+    if (!$('dialog[open]')) focusCard(state.detailIndex);
+  });
   $('#dEdit').addEventListener('click', () => { const it = state.shown[state.detailIndex]; detail.close(); openEditor(it); });
   $('#dDelete').addEventListener('click', () => deleteItem(state.shown[state.detailIndex]));
 
@@ -534,7 +614,8 @@
   // Đóng hộp thoại khi bấm nút có data-close hoặc bấm ra ngoài
   $$('dialog').forEach((d) => {
     d.addEventListener('click', (e) => {
-      if (e.target.closest('[data-close]') || e.target === d) d.close();
+      if (!e.target.closest('[data-close]') && e.target !== d) return;
+      if (d === editor) closeEditor(); else d.close();
     });
   });
 
@@ -585,6 +666,37 @@
   const editor = $('#editor');
   let editing = null; // món đang sửa (null = thêm mới)
   let queued = []; // ảnh mới chờ tải lên: {file, url}
+  let saving = false;
+  let cleanForm = ''; // form lúc mới mở, để biết anh đã sửa gì chưa
+
+  const snapshot = () => JSON.stringify(readForm());
+  const editorDirty = () => queued.length > 0 || snapshot() !== cleanForm;
+
+  async function closeEditor() {
+    if (saving) return;
+    if (editorDirty() && !(await ask('Bỏ thay đổi chưa lưu?', 'Những gì anh vừa nhập trong form này sẽ mất.', 'Bỏ thay đổi', 'Tiếp tục sửa'))) return;
+    editor.close();
+  }
+  // Chrome không cho chặn cancel mọi lúc nên form đặt closedby="none" và tự bắt Esc; cancel dành cho trình duyệt chưa có closedby
+  editor.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); closeEditor(); } });
+  editor.addEventListener('cancel', (e) => { e.preventDefault(); closeEditor(); });
+  window.addEventListener('beforeunload', (e) => { if (editor.open && (saving || editorDirty())) e.preventDefault(); });
+
+  function setStatus(msg, isError) {
+    $('#eStatus').textContent = msg || '';
+    $('#eStatus').classList.toggle('is-error', !!isError);
+  }
+
+  function fieldError(sel, msg) {
+    const input = $(sel);
+    const box = input.closest('.field');
+    const note = $('.field-error', box);
+    box.classList.toggle('invalid', !!msg);
+    note.textContent = msg || '';
+    note.hidden = !msg;
+    if (msg) input.setAttribute('aria-invalid', 'true'); else input.removeAttribute('aria-invalid');
+  }
+  ['#fName', '#fNo', '#fPrice'].forEach((sel) => $(sel).addEventListener('input', () => fieldError(sel)));
 
   function fillSelect(sel, options, value, withOther) {
     const opts = options.slice();
@@ -670,10 +782,11 @@
     $('#dlOrigin').innerHTML = uniq('origin').map((o) => '<option value="' + esc(o) + '">').join('');
     $('#dlCollection').innerHTML = Array.from(countBy('collection').keys()).sort().map((o) => '<option value="' + esc(o) + '">').join('');
     $('#dlTag').innerHTML = Array.from(countBy('tag').keys()).sort().map((o) => '<option value="' + esc(o) + '">').join('');
-    $('#fName').closest('.field').classList.remove('invalid');
-    $('#eStatus').textContent = 'Lưu xong, dữ liệu được ghi thẳng vào sheet Zippo trên Google Drive của anh.';
+    ['#fName', '#fNo', '#fPrice'].forEach((sel) => fieldError(sel));
+    setStatus('');
     updateCodeYear();
     renderPhotos();
+    cleanForm = snapshot();
     editor.showModal();
     editor.querySelector('.editor-body').scrollTop = 0;
   }
@@ -800,37 +913,59 @@
 
   $('#editForm').addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (saving) return;
     const data = readForm();
-    if (!data.name) {
-      $('#fName').closest('.field').classList.add('invalid');
-      $('#fName').focus();
-      $('#eStatus').textContent = 'Anh nhập tên Zippo trước nhé.';
-      return;
-    }
-    if (data.price !== '' && isNaN(data.price)) {
-      $('#fPrice').focus();
-      $('#eStatus').textContent = 'Giá mua chỉ gồm số (đơn vị nghìn đồng).';
+    const no = $('#fNo').value.trim();
+    const problems = [
+      ['#fName', data.name ? '' : 'Anh nhập tên Zippo trước nhé.'],
+      ['#fNo', !no || data.no != null ? '' : 'No. chỉ gồm số, để trống thì máy tự đánh số.'],
+      ['#fPrice', data.price !== '' && isNaN(data.price) ? 'Giá mua chỉ gồm số (đơn vị nghìn đồng).' : ''],
+    ];
+    problems.forEach(([sel, msg]) => fieldError(sel, msg));
+    const first = problems.find((p) => p[1]);
+    if (first) {
+      setStatus(first[1], true);
+      $(first[0]).focus();
       return;
     }
     const btn = $('#eSave');
+    const isNew = !editing;
+    let saved = null;
     btn.disabled = true;
+    saving = true;
     try {
-      $('#eStatus').textContent = 'Đang lưu…';
+      setStatus('Đang lưu…');
       if (queued.length) data.photosCount = queued.length;
-      const res = await apiPost({ action: 'save', item: data });
-      const saved = res.item;
-      for (let i = 0; i < queued.length; i++) {
-        $('#eStatus').textContent = 'Đang tải ảnh ' + (i + 1) + '/' + queued.length + '…';
-        const { data: b64, mime } = await toJpegBase64(queued[i].file);
+      saved = (await apiPost({ action: 'save', item: data })).item;
+      const total = queued.length;
+      for (let i = 1; queued.length; i++) {
+        setStatus('Đang tải ảnh ' + i + '/' + total + '…');
+        const { data: b64, mime } = await toJpegBase64(queued[0].file);
         const up = await apiPost({ action: 'uploadPhoto', pid: pid(saved), no: pid(saved), data: b64, mime });
         saved.photos = (saved.photos || []).concat(up.photo.id);
+        URL.revokeObjectURL(queued.shift().url);
       }
       upsert(saved);
+      saving = false;
       editor.close();
-      toast(editing ? 'Đã lưu No. ' + saved.no : 'Đã thêm No. ' + saved.no);
+      focusCard(state.shown.findIndex((x) => pid(x) === pid(saved)));
+      toast(isNew ? 'Đã thêm No. ' + saved.no : 'Đã lưu No. ' + saved.no);
     } catch (err) {
-      $('#eStatus').textContent = 'Chưa lưu được: ' + err.message;
+      if (!saved) {
+        setStatus('Chưa lưu được: ' + err.message, true);
+        return;
+      }
+      // Thông tin đã vào sheet, chỉ còn ảnh: từ giờ bấm Lưu là sửa chiếc này, không tạo chiếc trùng
+      editing = saved;
+      upsert(saved);
+      $('#eTitle').textContent = 'Sửa Zippo · No. ' + saved.no;
+      $('#eSave').textContent = 'Lưu thay đổi';
+      $('#fNo').value = saved.no;
+      renderPhotos();
+      cleanForm = snapshot();
+      setStatus('Đã lưu thông tin, còn ' + queued.length + ' ảnh chưa tải lên được: ' + err.message + ' Anh bấm Lưu để thử lại.', true);
     } finally {
+      saving = false;
       btn.disabled = false;
     }
   });
@@ -867,11 +1002,14 @@
   $('#addBtn').addEventListener('click', () => openEditor(null));
 
   // ---------- Hộp xác nhận, thông báo ----------
-  function ask(title, text) {
+  function ask(title, text, yes, no) {
     return new Promise((resolve) => {
       const d = $('#confirm');
+      if (d.open) { resolve(false); return; }
       $('#cTitle').textContent = title;
       $('#cText').textContent = text;
+      $('#cYes').textContent = yes || 'Xoá';
+      $('#cNo').textContent = no || 'Huỷ';
       d.returnValue = '';
       d.addEventListener('close', () => resolve(d.returnValue === 'yes'), { once: true });
       d.showModal();
@@ -954,11 +1092,18 @@
     $('#collectionView').hidden = page !== 'collection';
     $('#statsView').hidden = page !== 'stats';
     $$('[data-nav]').forEach((b) => b.classList.toggle('is-active', b.dataset.nav === page));
+    $$('.tab, .bottom-nav button').forEach((b) => {
+      if (b.dataset.nav === page) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    });
     if (page === 'stats') renderStats();
     window.scrollTo(0, 0);
   }
   $$('[data-nav]').forEach((b) => b.addEventListener('click', (e) => { e.preventDefault(); go(b.dataset.nav); }));
   $('#q').addEventListener('focus', () => { if (state.page !== 'collection') go('collection'); });
+  $('.skip-link').addEventListener('click', (e) => {
+    e.preventDefault();
+    $(state.page === 'stats' ? '#statsView' : '#main').focus();
+  });
 
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
     navigator.serviceWorker.register('sw.js').catch(() => {});
