@@ -33,7 +33,7 @@
     q: '',
     noPhoto: false,
     filters: { collection: new Set(), tag: new Set(), caseType: new Set(), finish: new Set(), codeYear: new Set(), yearPurchase: new Set() },
-    open: new Set(['caseType']),
+    open: new Set(), // mở trang: mọi nhóm lọc đều thu gọn
     decadesOpen: new Set(),
     more: new Set(), // nhóm lọc đang mở rộng "Xem thêm"
     sort: 'no-desc',
@@ -223,11 +223,12 @@
   function groupHtml(key, title, body, priv) {
     const open = state.open.has(key);
     const n = state.filters[key].size;
-    return '<div class="fgroup">' +
+    // Nội dung luôn có sẵn, đóng/mở bằng CSS để thả xuống mượt
+    return '<div class="fgroup' + (open ? ' is-open' : '') + '">' +
       '<button type="button" class="fgroup-head" data-toggle="' + key + '" aria-expanded="' + open + '">' +
       '<span>' + esc(title) + '</span>' + (priv ? ICON.lock : '') +
-      (n ? '<span class="badge">' + n + '</span>' : '') + (open ? ICON.up : ICON.down) + '</button>' +
-      (open ? '<div class="fgroup-body">' + body + '</div>' : '') + '</div>';
+      (n ? '<span class="badge">' + n + '</span>' : '') + ICON.down + '</button>' +
+      '<div class="fgroup-wrap"' + (open ? '' : ' inert') + '><div class="fgroup-body">' + body + '</div></div></div>';
   }
 
   const filterKey = (el) => [el.tagName, el.dataset.group, el.dataset.decade, el.dataset.toggle, el.dataset.more, el.dataset.decadeOpen, el.dataset.year, el.value].join('|');
@@ -319,7 +320,13 @@
     if (!t) return;
     if (t.dataset.toggle) {
       const k = t.dataset.toggle;
-      state.open.has(k) ? state.open.delete(k) : state.open.add(k);
+      const on = !state.open.has(k);
+      on ? state.open.add(k) : state.open.delete(k);
+      const g = t.closest('.fgroup');
+      g.classList.toggle('is-open', on);
+      t.setAttribute('aria-expanded', on);
+      g.querySelector('.fgroup-wrap').inert = !on;
+      return;
     } else if (t.dataset.more) {
       const k = t.dataset.more;
       state.more.has(k) ? state.more.delete(k) : state.more.add(k);
@@ -455,7 +462,7 @@
     const meta = [it.caseType, it.finish].filter(Boolean).join(' · ');
     return '<button type="button" class="card' + (photo ? '' : ' is-stamped') + '" data-i="' + i + '" aria-label="' + esc('Xem chi tiết #' + it.no + ' ' + it.name + (it.code ? ', mã ' + it.code : '')) + '">' +
       '<div class="card-img">' + (photo ? '<img loading="lazy" decoding="async" src="' + img(photo, 600) + '" alt="">' : '') +
-      '<span class="no-badge">#' + it.no + '</span>' + (it.photos && it.photos.length > 1 ? '<span class="pcount">' + it.photos.length + ' ảnh</span>' : '') + '</div>' +
+      '<span class="no-badge">#' + it.no + '</span></div>' +
       '<div class="card-body"><h3>' + esc(it.name).replace(/ - /g, '&nbsp;- ') + '</h3><p class="meta">' + esc(meta || '—') + '</p>' +
       '<div class="foot"><span class="code">' + esc(it.code || '—') + '</span>' +
       (state.owner && it.price ? '<span class="price">' + money(it.price) + '</span>' : '') + '</div></div></button>';

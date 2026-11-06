@@ -122,8 +122,6 @@ body:not(.owner) .owner-only { display: none !important; }
   display: grid; grid-template-columns: 248px minmax(0, 1fr); align-items: start;
 }
 .filters {
-  position: sticky; top: var(--topbar);
-  height: calc(100dvh - var(--topbar)); overflow-y: auto;
   padding: var(--space-lg); border-right: var(--rule-hair) solid var(--color-rule);
 }
 .filters-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-sm); }
@@ -139,7 +137,13 @@ body:not(.owner) .owner-only { display: none !important; }
 .fgroup-head:active { color: var(--color-ink-2); }
 .fgroup-head span:first-child { flex-grow: 1; }
 .fgroup-head .lock { color: var(--color-accent); width: 14px; height: 14px; }
-.fgroup-body { padding-bottom: var(--space-sm); display: flex; flex-direction: column; gap: var(--space-3xs); }
+.fgroup-body { padding-bottom: 0; display: flex; flex-direction: column; gap: var(--space-3xs); min-height: 0; overflow: hidden; transition: padding-bottom var(--dur-long) var(--ease-out); }
+/* Thả xuống mượt: hàng lưới co từ 0 tới đủ cao */
+.fgroup-wrap { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--dur-long) var(--ease-out); }
+.fgroup.is-open .fgroup-wrap { grid-template-rows: 1fr; }
+.fgroup.is-open .fgroup-body { padding-bottom: var(--space-sm); }
+.fgroup-head > svg:last-child { transition: transform var(--dur-short) var(--ease-out); }
+.fgroup.is-open .fgroup-head > svg:last-child { transform: rotate(180deg); }
 .opt { display: flex; align-items: center; gap: var(--space-xs); min-height: 32px; font-size: var(--text-sm); cursor: pointer; }
 .opt input { width: 16px; height: 16px; margin: 0; accent-color: var(--color-accent); flex-shrink: 0; }
 .opt .label { flex-grow: 1; min-width: 0; overflow-wrap: anywhere; }
@@ -182,8 +186,6 @@ body:not(.owner) .owner-only { display: none !important; }
   display: grid; grid-template-columns: repeat(6, minmax(0, 1fr));
   border-top: var(--rule-hair) solid var(--color-rule); border-left: var(--rule-hair) solid var(--color-rule);
 }
-@media (min-width: 1800px) { .grid { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
-@media (min-width: 2200px) { .grid { grid-template-columns: repeat(8, minmax(0, 1fr)); } }
 @media (max-width: 1399px) { .grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
 @media (max-width: 1199px) { .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (max-width: 999px) { .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
