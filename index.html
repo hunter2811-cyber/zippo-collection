@@ -11,14 +11,15 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700&family=Be+Vietnam+Pro:wght@400;500&family=Atkinson+Hyperlegible+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+<a class="skip-link" href="#main">Bỏ qua, tới danh sách</a>
 <header class="topbar">
   <a class="brand" href="#" data-nav="collection">Bộ sưu tập Zippo</a>
   <nav class="tabs" aria-label="Điều hướng chính">
-    <button type="button" class="tab is-active" data-nav="collection">Bộ sưu tập</button>
+    <button type="button" class="tab is-active" data-nav="collection" aria-current="page">Bộ sưu tập</button>
     <button type="button" class="tab" data-nav="stats">Thống kê</button>
   </nav>
   <div class="grow"></div>
@@ -27,6 +28,7 @@
     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
     <input id="q" type="search" placeholder="Tìm theo tên, mã, Finish…" autocomplete="off">
   </label>
+  <button type="button" class="icon-btn theme-btn" id="themeBtn" aria-label="Bật chế độ tối" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
   <button type="button" class="btn btn-accent owner-only" id="addBtn">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Thêm Zippo</span>
   </button>
@@ -53,9 +55,24 @@
   </aside>
   <div class="backdrop" id="filtersBackdrop" hidden></div>
 
-  <main class="content">
+  <main class="content" id="main" tabindex="-1">
+    <h1 class="sr-only">Bộ sưu tập Zippo</h1>
+    <section class="overview" id="overview" aria-label="Tổng quan" hidden>
+      <div class="ov-main">
+        <p class="ov-num"><span id="ovNum"></span><small>chiếc Zippo trong bộ sưu tập</small></p>
+        <div class="ov-progress">
+          <div class="ov-row"><span>Tiến độ chụp ảnh</span><b id="ovPhotoTxt"></b></div>
+          <div class="meter" aria-hidden="true"><i id="ovBar"></i></div>
+          <button type="button" class="link-btn" id="ovNoPhoto">Xem các chiếc chưa có ảnh</button>
+        </div>
+      </div>
+      <div class="ov-recent">
+        <div class="ov-head"><h2>Mới thêm gần đây</h2></div>
+        <div class="ov-list" id="ovRecent"></div>
+      </div>
+    </section>
     <div class="toolbar">
-      <button type="button" class="btn btn-ghost filter-toggle" id="openFilters">
+      <button type="button" class="btn btn-ghost filter-toggle" id="openFilters" aria-controls="filters" aria-expanded="false">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
         <span>Bộ lọc</span><span class="badge" id="filterBadge" hidden></span>
       </button>
@@ -75,11 +92,14 @@
     </div>
     <div class="chips-active" id="activeChips"></div>
     <div class="grid" id="grid"></div>
-    <p class="empty" id="empty" hidden>Không có chiếc Zippo nào khớp bộ lọc.</p>
+    <div class="empty" id="empty" hidden>
+      <p id="emptyText"></p>
+      <button type="button" class="btn btn-ghost" id="emptyAction"></button>
+    </div>
   </main>
 </div>
 
-<main class="stats" id="statsView" hidden></main>
+<main class="stats" id="statsView" tabindex="-1" hidden></main>
 
 <!-- Chi tiết -->
 <dialog class="modal detail" id="detail" aria-labelledby="dTitle">
@@ -95,14 +115,18 @@
       <button type="button" class="icon-btn" id="dNext" aria-label="Chiếc sau"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
       <button type="button" class="icon-btn" data-close aria-label="Đóng"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
-    <h2 id="dTitle"></h2>
+    <h2 id="dTitle" tabindex="-1" aria-live="polite"></h2>
     <dl class="facts" id="dFacts"></dl>
     <section class="private owner-only" id="dPrivate" aria-label="Thông tin riêng tư"></section>
-    <div class="detail-actions owner-only">
-      <button type="button" class="btn btn-ghost danger" id="dDelete">
+    <div class="detail-actions">
+      <button type="button" class="btn btn-ghost" id="dShare">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5M5 13v7h14v-7"/></svg>Chia sẻ
+      </button>
+      <div class="grow"></div>
+      <button type="button" class="btn btn-ghost danger owner-only" id="dDelete">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>Xoá
       </button>
-      <button type="button" class="btn btn-dark" id="dEdit">
+      <button type="button" class="btn btn-dark owner-only" id="dEdit">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/></svg>Sửa
       </button>
     </div>
@@ -110,7 +134,7 @@
 </dialog>
 
 <!-- Thêm / sửa -->
-<dialog class="modal editor" id="editor" aria-labelledby="eTitle">
+<dialog class="modal editor" id="editor" aria-labelledby="eTitle" closedby="none">
   <form id="editForm" novalidate>
     <div class="editor-head">
       <h2 id="eTitle">Thêm Zippo</h2>
@@ -131,13 +155,13 @@
       <div class="fieldsets">
         <fieldset>
           <legend>Thông tin công khai</legend>
-          <div class="field span2"><label for="fName">Tên *</label><input id="fName" name="name" required></div>
+          <div class="field span2"><label for="fName">Tên *</label><input id="fName" name="name" required aria-describedby="fNameErr"><p class="field-error" id="fNameErr" hidden></p></div>
           <div class="field"><label for="fSku">SKU</label><input id="fSku" name="sku" placeholder="VD: 24293"></div>
-          <div class="field"><label for="fNo">No.</label><input id="fNo" name="no" inputmode="numeric" pattern="[0-9]*"></div>
+          <div class="field"><label for="fNo">No.</label><input id="fNo" name="no" inputmode="numeric" pattern="[0-9]*" aria-describedby="fNoErr"><p class="field-error" id="fNoErr" hidden></p></div>
           <div class="field wide"><label for="fCase">Case</label><select id="fCase" name="caseType"></select>
-            <input id="fCaseOther" class="other" placeholder="Nhập Case khác" hidden></div>
+            <input id="fCaseOther" class="other" placeholder="Nhập Case khác" aria-label="Case khác" hidden></div>
           <div class="field wide"><label for="fFinish">Finish</label><select id="fFinish" name="finish"></select>
-            <input id="fFinishOther" class="other" placeholder="Nhập Finish khác" hidden></div>
+            <input id="fFinishOther" class="other" placeholder="Nhập Finish khác" aria-label="Finish khác" hidden></div>
           <div class="field"><label for="fLeft">Code trái</label><input id="fLeft" name="left" placeholder="VD: C" autocapitalize="characters"></div>
           <div class="field"><label for="fRight">Code phải</label><input id="fRight" name="right" placeholder="VD: 23"></div>
           <p class="computed span2" id="fCodeYear">Code Year tự tính khi lưu</p>
@@ -148,7 +172,7 @@
         </fieldset>
         <fieldset class="private-set">
           <legend><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Riêng tư · khách không thấy</legend>
-          <div class="field"><label for="fPrice">Giá mua (nghìn đ)</label><input id="fPrice" name="price" inputmode="decimal" placeholder="VD: 1400"></div>
+          <div class="field"><label for="fPrice">Giá mua (nghìn đ)</label><input id="fPrice" name="price" inputmode="decimal" placeholder="VD: 1400" aria-describedby="fPriceErr"><p class="field-error" id="fPriceErr" hidden></p></div>
           <div class="field"><label for="fDate">Ngày mua</label><input id="fDate" name="date" type="date"></div>
           <div class="field"><label for="fCaseCond">Tình trạng vỏ</label><select id="fCaseCond" name="caseCond"></select></div>
           <div class="field"><label for="fInsertsCond">Tình trạng ruột</label><select id="fInsertsCond" name="insertsCond"></select></div>
@@ -163,7 +187,10 @@
       </div>
     </div>
     <div class="editor-foot">
-      <p class="hint" id="eStatus">Lưu xong, dữ liệu được ghi thẳng vào sheet Zippo trên Google Drive của anh.</p>
+      <div class="editor-note">
+        <p class="hint">Lưu xong, dữ liệu được ghi thẳng vào sheet Zippo trên Google Drive của anh.</p>
+        <p class="status" id="eStatus" role="status"></p>
+      </div>
       <button type="button" class="btn btn-ghost" data-close>Huỷ</button>
       <button type="submit" class="btn btn-accent" id="eSave">Lưu</button>
     </div>
@@ -196,14 +223,14 @@
     <h2 id="cTitle"></h2>
     <p class="muted" id="cText"></p>
     <div class="row-end">
-      <button value="no" class="btn btn-ghost">Huỷ</button>
+      <button value="no" class="btn btn-ghost" id="cNo">Huỷ</button>
       <button value="yes" class="btn btn-danger" id="cYes">Xoá</button>
     </div>
   </form>
 </dialog>
 
 <nav class="bottom-nav" aria-label="Điều hướng">
-  <button type="button" class="is-active" data-nav="collection">
+  <button type="button" class="is-active" data-nav="collection" aria-current="page">
     <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><rect x="14" y="14" width="6" height="6"/></svg>Bộ sưu tập
   </button>
   <button type="button" data-nav="stats">
