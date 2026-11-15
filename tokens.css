@@ -18,6 +18,8 @@
   --color-steel: oklch(90% 0.004 240); --color-steel-ink: oklch(30% 0.01 240); --color-steel-muted: oklch(41% 0.01 240);
   /* Thanh trên giữ màu đen của trang cũ */
   --color-bar: oklch(19% 0.006 60); --color-bar-2: oklch(26% 0.006 60); --color-bar-ink: oklch(97% 0.004 85); --color-bar-muted: oklch(78% 0.008 85); --color-bar-edge: oklch(55% 0.008 85); --color-bar-signal: oklch(82% 0.15 80);
+  /* Nền sau ảnh: luôn sáng, kể cả ở chế độ tối, để ảnh PNG tách nền không bị chìm */
+  --color-photo: oklch(95.5% 0.007 85); --color-photo-2: oklch(98% 0.006 85);
   --color-scrim: oklch(19% 0.01 60 / 0.55);
   --font-display: "Be Vietnam Pro", ui-sans-serif, system-ui, sans-serif; --font-body: var(--font-display);
   --font-outlier: "Atkinson Hyperlegible Mono", ui-monospace, monospace;
