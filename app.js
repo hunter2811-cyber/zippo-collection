@@ -54,6 +54,7 @@
   // ---------- Định dạng ----------
   const money = (k) => (k == null || k === '' ? '' : Math.round(Number(k) * 1000).toLocaleString('vi-VN') + ' đ');
   const dateVN = (s) => (s ? s.split('-').reverse().join('/') : '');
+  // Ảnh nhỏ cũng xin từ cỡ 400 trở lên: dưới mức đó Google Drive trả ảnh PNG tách nền với nền đen.
   const img = (id, w) => 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(id) + '&sz=w' + w;
   const decadeOf = (y) => (y ? Math.floor(y / 10) * 10 : 'none');
   const decadeLabel = (d) => (d === 'none' ? 'Không rõ' : String(d).slice(0, 3) + 'x');
@@ -628,7 +629,7 @@
     $('#dImg').innerHTML = (id ? '<img src="' + img(id, 1600) + '" alt="' + esc(it.name) + '">' : stampHtml(it)) +
       (photos.length > 1 ? '<span class="pcounter">' + (state.photoIndex + 1) + ' / ' + photos.length + '</span><span class="pdots" aria-hidden="true">' + photos.map((p, i) => '<i' + (i === state.photoIndex ? ' class="on"' : '') + '></i>').join('') + '</span>' : '');
     $('#dImg').classList.remove('is-zoom');
-    $('#dThumbs').innerHTML = photos.length > 1 ? photos.map((p, i) => '<button type="button" class="' + (i === state.photoIndex ? 'is-on' : '') + '" data-p="' + i + '" aria-label="Ảnh ' + (i + 1) + '"' + (i === state.photoIndex ? ' aria-current="true"' : '') + '><img loading="lazy" src="' + img(p, 200) + '" alt=""></button>').join('') : '';
+    $('#dThumbs').innerHTML = photos.length > 1 ? photos.map((p, i) => '<button type="button" class="' + (i === state.photoIndex ? 'is-on' : '') + '" data-p="' + i + '" aria-label="Ảnh ' + (i + 1) + '"' + (i === state.photoIndex ? ' aria-current="true"' : '') + '><img loading="lazy" src="' + img(p, 400) + '" alt=""></button>').join('') : '';
   }
 
   $('#dThumbs').addEventListener('click', (e) => {
@@ -894,8 +895,8 @@
 
   function renderPhotos() {
     const existing = (editing && editing.photos) || [];
-    const html = existing.map((id, i) => '<div class="pitem' + (i === 0 ? ' is-main' : '') + '"><img src="' + img(id, 300) + '" alt="Ảnh ' + (i + 1) + '">' +
-      (i === 0 ? '<span class="tag">Ảnh chính</span>' : '') + '<div class="acts">' +
+    const html = existing.map((id, i) => '<div class="pitem' + (i === 0 ? ' is-main' : '') + '"><img src="' + img(id, 400) + '" alt="Ảnh ' + (i + 1) + '">' +
+      '<div class="acts">' +
       (i > 0 ? '<button type="button" data-main="' + id + '" aria-label="Đặt làm ảnh chính" title="Đặt làm ảnh chính">' + ICON.star + '</button>' : '') +
       '<button type="button" data-del="' + id + '" aria-label="Xoá ảnh" title="Xoá ảnh">' + ICON.trash + '</button></div></div>')
       .concat(queued.map((q, i) => '<div class="pitem"><img src="' + q.url + '" alt=""><span class="tag new">Mới</span><div class="acts">' +
