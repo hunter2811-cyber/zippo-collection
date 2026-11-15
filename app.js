@@ -896,7 +896,7 @@
   function renderPhotos() {
     const existing = (editing && editing.photos) || [];
     const html = existing.map((id, i) => '<div class="pitem' + (i === 0 ? ' is-main' : '') + '"><img src="' + img(id, 400) + '" alt="Ảnh ' + (i + 1) + '">' +
-      (i === 0 ? '<span class="tag">Ảnh chính</span>' : '') + '<div class="acts">' +
+      '<div class="acts">' +
       (i > 0 ? '<button type="button" data-main="' + id + '" aria-label="Đặt làm ảnh chính" title="Đặt làm ảnh chính">' + ICON.star + '</button>' : '') +
       '<button type="button" data-del="' + id + '" aria-label="Xoá ảnh" title="Xoá ảnh">' + ICON.trash + '</button></div></div>')
       .concat(queued.map((q, i) => '<div class="pitem"><img src="' + q.url + '" alt=""><span class="tag new">Mới</span><div class="acts">' +
