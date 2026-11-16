@@ -54,7 +54,7 @@
   // ---------- Định dạng ----------
   const money = (k) => (k == null || k === '' ? '' : Math.round(Number(k) * 1000).toLocaleString('vi-VN') + ' đ');
   const dateVN = (s) => (s ? s.split('-').reverse().join('/') : '');
-  // Ảnh nhỏ cũng xin từ cỡ 400 trở lên: dưới mức đó Google Drive trả ảnh PNG tách nền với nền đen.
+  // Ảnh nhỏ dùng đúng đường dẫn của ảnh lớn (cỡ 1600): ở cỡ nhỏ Google Drive trả ảnh PNG tách nền với nền đen (đã thử 200 và 400).
   const img = (id, w) => 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(id) + '&sz=w' + w;
   const decadeOf = (y) => (y ? Math.floor(y / 10) * 10 : 'none');
   const decadeLabel = (d) => (d === 'none' ? 'Không rõ' : String(d).slice(0, 3) + 'x');
@@ -510,7 +510,7 @@
     $('#ovNoPhoto').hidden = withPhoto === total;
     const recent = state.items.slice().sort((a, b) => (b.no || 0) - (a.no || 0)).slice(0, 4);
     $('#ovRecent').innerHTML = recent.map((it) => '<button type="button" class="ov-item" data-pid="' + pid(it) + '">' +
-      '<span class="ov-img">' + (it.photos && it.photos[0] ? '<img loading="lazy" src="' + img(it.photos[0], 400) + '" alt="">' : '') + '</span>' +
+      '<span class="ov-img">' + (it.photos && it.photos[0] ? '<img loading="lazy" src="' + img(it.photos[0], 600) + '" alt="">' : '') + '</span>' +
       '<span class="ov-name">' + esc(it.name) + '</span><span class="ov-meta">#' + it.no + ' · ' + esc(it.code || '—') + '</span></button>').join('');
   }
   $('#ovNoPhoto').addEventListener('click', () => { state.noPhoto = true; render(); $('#main').focus({ preventScroll: true }); });
@@ -629,7 +629,7 @@
     $('#dImg').innerHTML = (id ? '<img src="' + img(id, 1600) + '" alt="' + esc(it.name) + '">' : stampHtml(it)) +
       (photos.length > 1 ? '<span class="pcounter">' + (state.photoIndex + 1) + ' / ' + photos.length + '</span><span class="pdots" aria-hidden="true">' + photos.map((p, i) => '<i' + (i === state.photoIndex ? ' class="on"' : '') + '></i>').join('') + '</span>' : '');
     $('#dImg').classList.remove('is-zoom');
-    $('#dThumbs').innerHTML = photos.length > 1 ? photos.map((p, i) => '<button type="button" class="' + (i === state.photoIndex ? 'is-on' : '') + '" data-p="' + i + '" aria-label="Ảnh ' + (i + 1) + '"' + (i === state.photoIndex ? ' aria-current="true"' : '') + '><img loading="lazy" src="' + img(p, 400) + '" alt=""></button>').join('') : '';
+    $('#dThumbs').innerHTML = photos.length > 1 ? photos.map((p, i) => '<button type="button" class="' + (i === state.photoIndex ? 'is-on' : '') + '" data-p="' + i + '" aria-label="Ảnh ' + (i + 1) + '"' + (i === state.photoIndex ? ' aria-current="true"' : '') + '><img loading="lazy" src="' + img(p, 1600) + '" alt=""></button>').join('') : '';
   }
 
   $('#dThumbs').addEventListener('click', (e) => {
@@ -895,7 +895,7 @@
 
   function renderPhotos() {
     const existing = (editing && editing.photos) || [];
-    const html = existing.map((id, i) => '<div class="pitem' + (i === 0 ? ' is-main' : '') + '"><img src="' + img(id, 400) + '" alt="Ảnh ' + (i + 1) + '">' +
+    const html = existing.map((id, i) => '<div class="pitem' + (i === 0 ? ' is-main' : '') + '"><img src="' + img(id, 1600) + '" alt="Ảnh ' + (i + 1) + '">' +
       '<div class="acts">' +
       (i > 0 ? '<button type="button" data-main="' + id + '" aria-label="Đặt làm ảnh chính" title="Đặt làm ảnh chính">' + ICON.star + '</button>' : '') +
       '<button type="button" data-del="' + id + '" aria-label="Xoá ảnh" title="Xoá ảnh">' + ICON.trash + '</button></div></div>')
